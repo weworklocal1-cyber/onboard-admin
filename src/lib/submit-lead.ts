@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 
 function toSnake(key: string): string {
   return key.replace(/[A-Z]/g, (m) => "_" + m.toLowerCase());
@@ -47,7 +47,7 @@ export async function submitLead(table: string, data: Record<string, any>) {
     }
   }
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from(table)
     .insert([row]);
 

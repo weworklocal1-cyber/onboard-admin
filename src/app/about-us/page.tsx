@@ -11,8 +11,8 @@ import Link from "next/link";
 import { StaggerContainer, StaggerItem } from "@/components/animations/scroll-reveal";
 
 const timelineItems = [
-  { year: "2024", title: "The Beginning", desc: "Founded with a vision to empower local restaurants. Started with 50 restaurant partners in Vijayawada." },
-  { year: "2025", title: "Rapid Expansion", desc: "Grew to 2,000+ partners across Andhra Pradesh and Telangana. Launched delivery partner program." },
+  { year: "2024", title: "The Beginning", desc: "Founded with a vision to empower local restaurants. Started with 50 restaurant partners in Hyderabad." },
+  { year: "2025", title: "Rapid Expansion", desc: "Grew to 2,000+ partners across Hyderabad and Telangana. Launched delivery partner program." },
   { year: "2026", title: "Going Big", desc: "Expanded to 5,000+ partners. Planning pan-India expansion with technology-led growth." },
   { year: "Future", title: "The Vision", desc: "Become India's most trusted local commerce platform. Empower 1 million+ local businesses." },
 ];

@@ -10,6 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.localwala.tech"),
   title: {
     default: "LocalWala Food - Delivering Local. Empowering Businesses.",
     template: "%s | LocalWala Food",
