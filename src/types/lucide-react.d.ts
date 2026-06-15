@@ -47,4 +47,9 @@ declare module "lucide-react" {
   export const ChevronUp: React.FC<IconProps>;
   export const Loader2: React.FC<IconProps>;
   export const Check: React.FC<IconProps>;
+  export const AlertCircle: React.FC<IconProps>;
+  export const AlertTriangle: React.FC<IconProps>;
+  export const ClipboardList: React.FC<IconProps>;
+  export const PlusCircle: React.FC<IconProps>;
+  export const LogOut: React.FC<IconProps>;
 }

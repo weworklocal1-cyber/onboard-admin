@@ -36,3 +36,7 @@ coverage/
 .cache/
 .vercel
 .netlify
+
+# Production environment file (may contain real secrets)
+.env
+

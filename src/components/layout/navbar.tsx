@@ -29,6 +29,8 @@ export default function Navbar() {
 
   useEffect(() => { setIsOpen(false); }, [pathname]);
 
+  if (pathname.startsWith("/workforce")) return null;
+
   return (
     <header
       className={cn(

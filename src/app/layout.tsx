@@ -59,10 +59,14 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const isWorkforce =
+    typeof window !== "undefined" &&
+    window.location.pathname.startsWith("/workforce");
+
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body className="font-sans antialiased bg-white text-gray-900">
-        <SiteLayout>{children}</SiteLayout>
+        {isWorkforce ? children : <SiteLayout>{children}</SiteLayout>}
       </body>
     </html>
   );
