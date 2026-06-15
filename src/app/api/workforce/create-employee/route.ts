@@ -230,21 +230,21 @@ export async function POST(request: Request) {
 
     // Send welcome email
     try {
-      let appOrigin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
-      
+      let appOrigin = "";
       try {
         const requestUrl = new URL(request.url);
-        const requestOrigin = requestUrl.origin;
-        // Dynamically override origin if we are testing locally or in Vercel preview
-        if (!appOrigin || requestOrigin.includes("localhost") || requestOrigin.includes("vercel.app")) {
-          appOrigin = requestOrigin;
-        }
+        appOrigin = requestUrl.origin;
       } catch (err) {
         console.error("Failed to parse request URL for welcome email origin:", err);
       }
 
-      if (!appOrigin) {
-        appOrigin = "https://onboard.localwala.tech";
+      // If parsing fails, or doesn't match local/preview/production domains, fall back to the env var or default
+      if (!appOrigin || (
+        !appOrigin.includes("localhost") && 
+        !appOrigin.includes("vercel.app") && 
+        !appOrigin.includes("localwala.tech")
+      )) {
+        appOrigin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "https://onboard.localwala.tech";
       }
 
       const loginUrl = `${appOrigin}/workforce/login`;
