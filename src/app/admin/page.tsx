@@ -22,6 +22,9 @@ const Icons = {
   Copy: ({ className }: { className?: string }) => (
     <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
   ),
+Whatsapp: ({ className }: { className?: string }) => (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12.03 1.99C6.51 1.99 2 6.5 2 12.02c0 2.12.55 4.13 1.51 5.89L0 24l6.38-.95c1.68.91 3.63 1.42 5.65 1.42 5.52 0 10.03-4.51 10.03-10.03S17.55 1.99 12.03 1.99zM12 20.14c-1.87 0-3.6-.5-5.1-1.37l-.36-.22-3.76.55.55-3.69-.23-.36c-.86-1.4-.98-2.93-.98-3.6 0-4.6 3.74-8.34 8.34-8.34 4.6 0 8.34 3.74 8.34 8.34 0 4.6-3.74 8.34-8.34 8.34zm4.12-6.12c-.22-.11-.9-.44-1.08-.49-.18-.05-.32-.08-.46.11-.14.19-.55.68-.67.82-.12.14-.24.15-.46.05-.22-.11-.9-.44-1.08-.49-.18-.05-.32-.08-.46.11-.14.19-.55.68-.67.82-.12.14-.24.15-.46.05-.22-.11-.9-.44-1.08-.49-.18-.05-.32-.08-.46.11-.14.19-.55.68-.67.82-.12.14-.24.15-.46.05-.22-.11-.9-.44-1.08-.49-.18-.05-.32-.08-.46.11-.14.19-.55.68-.67.82-.12.14-.24.15-.46.05-.22-.11z"/></svg>
+  ),
   ChevronLeft: ({ className }: { className?: string }) => (
     <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
   ),
@@ -164,6 +167,31 @@ function formatActivityDate(val: any) {
   } catch { return String(val); }
 }
 
+type WhatsappTemplateFn = (data: Row) => string;
+
+const WHATSAPP_TEMPLATES: Record<string, WhatsappTemplateFn> = {
+  restaurant_partners: (data: any) => `Hello ${data.owner_name || data.restaurant_name || "there"}! Thank you for your interest in LocalWala Food. We're excited to partner with "${data.restaurant_name || ""}" and will be in touch soon to discuss the partnership details. Our team will contact you at ${data.whatsapp || data.mobile || ""} for next steps.`,
+  delivery_partners: (data: any) => `Hello ${data.full_name || "there"}! Thanks for applying to be a delivery partner with LocalWala Food. We've received your application and will review it shortly. We'll contact you at ${data.whatsapp || data.mobile || ""} regarding the next steps.`,
+  careers: (data: any) => `Hello ${data.full_name || "there"}! Thank you for applying for the ${data.position_applying_for || "position"} role at LocalWala Food. We've received your application and our HR team will review it. We'll reach out to you at ${data.whatsapp || data.mobile || ""} for further discussion.`,
+  contact_leads: (data: any) => `Hello ${data.name || "there"}! Thank you for reaching out to LocalWala Food. We've received your ${data.subject ? `inquiry about "${data.subject}"` : "message"} and will get back to you shortly.`,
+};
+
+function getWhatsappNumber(row: Row): string | null {
+  return row.whatsapp || row.mobile || null;
+}
+
+function getWhatsappLink(row: Row, templateKey?: string): string {
+  const phone = getWhatsappNumber(row);
+  if (!phone) return "";
+  let message = "";
+  if (templateKey && WHATSAPP_TEMPLATES[templateKey]) {
+    message = WHATSAPP_TEMPLATES[templateKey](row);
+  } else if (row.table && WHATSAPP_TEMPLATES[row.table]) {
+    message = WHATSAPP_TEMPLATES[row.table](row);
+  }
+  return `https://wa.me/${phone.replace("+", "").replace(/\s/g, "")}?text=${encodeURIComponent(message)}`;
+}
+
 const ROWS_PER_PAGE = 25;
 
 export default function AdminPage() {
@@ -199,6 +227,7 @@ export default function AdminPage() {
   const [newRole, setNewRole] = useState("viewer");
   const [addingUser, setAddingUser] = useState(false);
   const [teamError, setTeamError] = useState("");
+  const [whatsappDropdown, setWhatsappDropdown] = useState<string | null>(null);
 
   const isViewer = user?.role === "viewer";
   const isSuperAdmin = user?.role === "super_admin";
@@ -789,78 +818,108 @@ export default function AdminPage() {
                               </td>
                             )}
                           </tr>
-                          {isExpanded && (
-                            <tr key={`${r.table}-${r.id}-detail`} className="bg-gradient-to-r from-gray-50 to-white">
-                              <td colSpan={isSuperAdmin ? 9 : 8} className="px-5 py-6">
-                                <div className="flex items-center justify-between mb-4">
-                                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Full Details</h3>
-                                  <button onClick={() => copyToClipboard(JSON.stringify(r, null, 2), r.id)}
-                                    className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 bg-white border border-gray-200 rounded-lg px-3 py-1.5 hover:border-gray-300 transition-all">
-                                    {copiedId === r.id ? <span className="text-green-600 flex items-center gap-1"><Check className="w-3.5 h-3.5" />Copied!</span> : <><Icons.Copy className="w-3.5 h-3.5" />Copy JSON</>}
-                                  </button>
-                                </div>
+{isExpanded && (
+                             <tr key={`${r.table}-${r.id}-detail`} className="bg-gradient-to-r from-gray-50 to-white">
+                               <td colSpan={isSuperAdmin ? 9 : 8} className="px-5 py-6">
+                                 <div className="flex items-center justify-between mb-4">
+                                   <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Full Details</h3>
+                                   <div className="flex items-center gap-2">
+                                     {getWhatsappNumber(r) && (
+                                       <div className="relative">
+                                         <button
+                                           onClick={(e) => { e.stopPropagation(); setWhatsappDropdown(whatsappDropdown === r.id ? null : r.id); }}
+                                           className="flex items-center gap-1.5 text-xs text-green-600 hover:text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5 hover:bg-green-100 transition-all"
+                                         >
+                                           <Icons.Whatsapp className="w-3.5 h-3.5" />
+                                           WhatsApp
+                                         </button>
+                                         {whatsappDropdown === r.id && (
+                                           <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-xl shadow-lg p-2 w-64 z-10">
+                                             <div className="text-xs font-semibold text-gray-600 mb-2 px-2">Select message template:</div>
+                                             {Object.entries(WHATSAPP_TEMPLATES).map(([key]) => (
+                                               <a
+                                                 key={key}
+                                                 href={getWhatsappLink(r, key)}
+                                                 target="_blank"
+                                                 rel="noopener noreferrer"
+                                                 onClick={() => setWhatsappDropdown(null)}
+                                                 className="block text-xs text-gray-700 hover:bg-gray-50 rounded-lg px-3 py-2 transition-colors"
+                                               >
+                                                 {TABLE_NAMES[key] || key.replace(/_/g, " ")}
+                                               </a>
+                                             ))}
+                                           </div>
+                                         )}
+                                       </div>
+                                     )}
+                                     <button onClick={() => copyToClipboard(JSON.stringify(r, null, 2), r.id)}
+                                       className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 bg-white border border-gray-200 rounded-lg px-3 py-1.5 hover:border-gray-300 transition-all">
+                                       {copiedId === r.id ? <span className="text-green-600 flex items-center gap-1"><Check className="w-3.5 h-3.5" />Copied!</span> : <><Icons.Copy className="w-3.5 h-3.5" />Copy JSON</>}
+                                     </button>
+                                   </div>
+                                 </div>
 
-                                {/* Status and Action Editor */}
-                                {!isViewer && (
-                                  <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-md mb-5 flex flex-col md:flex-row md:items-end justify-between gap-4">
-                                    <div className="flex flex-col md:flex-row md:items-center gap-4 flex-1">
-                                      <div>
-                                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Manage Lead Status</div>
-                                        <div className="relative">
-                                          <select
-                                            value={editingStatus[r.id] !== undefined ? editingStatus[r.id] : r.status}
-                                            onChange={(e) => {
-                                              const val = e.target.value;
-                                              setEditingStatus(prev => ({ ...prev, [r.id]: val }));
-                                              if (val !== "rejected") {
-                                                setEditingReason(prev => ({ ...prev, [r.id]: "" }));
-                                              }
-                                            }}
-                                            className="appearance-none bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 pr-10 text-sm font-semibold text-gray-700 outline-none focus:ring-2 focus:ring-gray-900 cursor-pointer hover:border-gray-300 w-full md:w-56"
-                                          >
-                                            <option value="new">New</option>
-                                            <option value="contacted">Contacted</option>
-                                            <option value="qualified">Qualified</option>
-                                            <option value="converted">Converted</option>
-                                            <option value="closed">Closed</option>
-                                            <option value="rejected">Rejected</option>
-                                          </select>
-                                          <ChevronDown className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+{/* Status and Action Editor */}
+                                  {!isViewer && (
+                                    <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-md mb-5 flex flex-col md:flex-row md:items-end justify-between gap-4">
+                                      <div className="flex flex-col md:flex-row md:items-center gap-4 flex-1">
+                                        <div>
+                                          <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Manage Lead Status</div>
+                                          <div className="relative">
+                                            <select
+                                              value={editingStatus[r.id] !== undefined ? editingStatus[r.id] : r.status}
+                                              onChange={(e) => {
+                                                const val = e.target.value;
+                                                setEditingStatus(prev => ({ ...prev, [r.id]: val }));
+                                                if (val !== "rejected") {
+                                                  setEditingReason(prev => ({ ...prev, [r.id]: "" }));
+                                                }
+                                              }}
+                                              className="appearance-none bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 pr-10 text-sm font-semibold text-gray-700 outline-none focus:ring-2 focus:ring-gray-900 cursor-pointer hover:border-gray-300 w-full md:w-56"
+                                            >
+                                              <option value="new">New</option>
+                                              <option value="contacted">Contacted</option>
+                                              <option value="qualified">Qualified</option>
+                                              <option value="converted">Converted</option>
+                                              <option value="closed">Closed</option>
+                                              <option value="rejected">Rejected</option>
+                                            </select>
+                                            <ChevronDown className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                          </div>
                                         </div>
+
+                                        {(editingStatus[r.id] === "rejected" || (!editingStatus[r.id] && r.status === "rejected")) && (
+                                          <div className="flex-1 w-full">
+                                            <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Rejection Reason</div>
+                                            <input
+                                              type="text"
+                                              value={editingReason[r.id] !== undefined ? editingReason[r.id] : (r.rejection_reason || "")}
+                                              onChange={(e) => setEditingReason(prev => ({ ...prev, [r.id]: e.target.value }))}
+                                              placeholder="Why was this lead rejected? (e.g. Budget mismatch, Not reachable...)"
+                                              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white transition-all"
+                                            />
+                                          </div>
+                                        )}
                                       </div>
 
-                                      {(editingStatus[r.id] === "rejected" || (!editingStatus[r.id] && r.status === "rejected")) && (
-                                        <div className="flex-1 w-full">
-                                          <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Rejection Reason</div>
-                                          <input
-                                            type="text"
-                                            value={editingReason[r.id] !== undefined ? editingReason[r.id] : (r.rejection_reason || "")}
-                                            onChange={(e) => setEditingReason(prev => ({ ...prev, [r.id]: e.target.value }))}
-                                            placeholder="Why was this lead rejected? (e.g. Budget mismatch, Not reachable...)"
-                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white transition-all"
-                                          />
-                                        </div>
-                                      )}
+                                      <div className="flex items-end self-stretch md:self-auto justify-end">
+                                        <button
+                                          onClick={() => handleUpdateStatus(r.table, r.id)}
+                                          disabled={updatingRowId === r.id}
+                                          className="w-full md:w-auto bg-gray-900 text-white rounded-xl px-6 py-2.5 text-sm font-bold hover:bg-gray-800 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                        >
+                                          {updatingRowId === r.id ? (
+                                            <>
+                                              <Icons.RefreshCw className="w-4 h-4 animate-spin" />
+                                              Updating...
+                                            </>
+                                          ) : (
+                                            "Save Changes"
+                                          )}
+                                        </button>
+                                      </div>
                                     </div>
-
-                                    <div className="flex items-end self-stretch md:self-auto justify-end">
-                                      <button
-                                        onClick={() => handleUpdateStatus(r.table, r.id)}
-                                        disabled={updatingRowId === r.id}
-                                        className="w-full md:w-auto bg-gray-900 text-white rounded-xl px-6 py-2.5 text-sm font-bold hover:bg-gray-800 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                      >
-                                        {updatingRowId === r.id ? (
-                                          <>
-                                            <Icons.RefreshCw className="w-4 h-4 animate-spin" />
-                                            Updating...
-                                          </>
-                                        ) : (
-                                          "Save Changes"
-                                        )}
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
+                                  )}
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                   {allFields.map(([key, value]) => {

@@ -572,3 +572,43 @@ export interface InfluencerPayment {
   paid_by: string;
   paid_at: string;
 }
+
+// ─── Salary Management Types ─────────────────
+
+export type PaymentFrequency = 'monthly' | 'weekly' | 'bi_weekly' | 'one_time';
+export type SalaryStatus = 'active' | 'revised' | 'inactive';
+
+export interface SalaryRecord {
+  id: string;
+  employee_id: string;
+  // Earnings
+  gross_salary: number;
+  base_salary: number;
+  hra: number | null;
+  special_allowance: number | null;
+  performance_bonus: number | null;
+  travel_allowance: number | null;
+  medical_allowance: number | null;
+  other_allowances: number | null;
+  // Deductions
+  pf_employee: number | null;
+  pf_employer: number | null;
+  professional_tax: number | null;
+  tds: number | null;
+  other_deductions: number | null;
+  // Net
+  net_salary: number;
+  // Meta
+  payment_frequency: PaymentFrequency;
+  effective_from: string;
+  effective_to: string | null;
+  status: SalaryStatus;
+  perks: string | null;
+  notes: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  employee?: Pick<Profile, 'id' | 'full_name' | 'designation' | 'department'>;
+  creator?: Pick<Profile, 'id' | 'full_name'>;
+}
