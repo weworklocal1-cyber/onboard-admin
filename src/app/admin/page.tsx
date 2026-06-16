@@ -171,9 +171,16 @@ type WhatsappTemplateFn = (data: Row) => string;
 
 const WHATSAPP_TEMPLATES: Record<string, WhatsappTemplateFn> = {
   restaurant_partners: (data: any) => `Hello ${data.owner_name || data.restaurant_name || "there"}! Thank you for your interest in LocalWala Food. We're excited to partner with "${data.restaurant_name || ""}" and will be in touch soon to discuss the partnership details. Our team will contact you at ${data.whatsapp || data.mobile || ""} for next steps.`,
+  restaurant_partners_followup: (data: any) => `Hello ${data.owner_name || data.restaurant_name || "there"}! This is a follow-up regarding your restaurant partnership inquiry with "${data.restaurant_name || ""}" on LocalWala Food. We wanted to check if you have any questions and discuss the next steps.`,
+  restaurant_partners_rejected: (data: any) => `Hello ${data.owner_name || data.restaurant_name || "there"}! Thank you for your interest in partnering with LocalWala Food. Unfortunately, we're unable to proceed with "${data.restaurant_name || ""}" at this time due to certain criteria not being met. Feel free to reach out if you have any questions.`,
   delivery_partners: (data: any) => `Hello ${data.full_name || "there"}! Thanks for applying to be a delivery partner with LocalWala Food. We've received your application and will review it shortly. We'll contact you at ${data.whatsapp || data.mobile || ""} regarding the next steps.`,
+  delivery_partners_followup: (data: any) => `Hello ${data.full_name || "there"}! Following up on your delivery partner application. We'd like to schedule an interview and document verification. Please let us know your availability.`,
+  delivery_partners_rejected: (data: any) => `Hello ${data.full_name || "there"}! Thank you for applying to be a delivery partner. After careful review, we're unable to move forward with your application at this time. We appreciate your interest in LocalWala Food.`,
   careers: (data: any) => `Hello ${data.full_name || "there"}! Thank you for applying for the ${data.position_applying_for || "position"} role at LocalWala Food. We've received your application and our HR team will review it. We'll reach out to you at ${data.whatsapp || data.mobile || ""} for further discussion.`,
+  careers_followup: (data: any) => `Hello ${data.full_name || "there"}! Following up on your application for ${data.position_applying_for || "the position"}. We'd like to schedule an interview. Could you please confirm your availability for this week?`,
+  careers_rejected: (data: any) => `Hello ${data.full_name || "there"}! Thank you for your interest in the ${data.position_applying_for || "position"} role at LocalWala Food. After reviewing your profile, we've decided to move forward with other candidates. We'll keep your resume for future opportunities.`,
   contact_leads: (data: any) => `Hello ${data.name || "there"}! Thank you for reaching out to LocalWala Food. We've received your ${data.subject ? `inquiry about "${data.subject}"` : "message"} and will get back to you shortly.`,
+  contact_leads_followup: (data: any) => `Hello ${data.name || "there"}! Following up on your inquiry about "${data.subject || "LocalWala Food"}". We'd be happy to provide more information. Please let us know how we can assist you.`,
 };
 
 function getWhatsappNumber(row: Row): string | null {
@@ -833,23 +840,27 @@ export default function AdminPage() {
                                            <Icons.Whatsapp className="w-3.5 h-3.5" />
                                            WhatsApp
                                          </button>
-                                         {whatsappDropdown === r.id && (
-                                           <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-xl shadow-lg p-2 w-64 z-10">
-                                             <div className="text-xs font-semibold text-gray-600 mb-2 px-2">Select message template:</div>
-                                             {Object.entries(WHATSAPP_TEMPLATES).map(([key]) => (
-                                               <a
-                                                 key={key}
-                                                 href={getWhatsappLink(r, key)}
-                                                 target="_blank"
-                                                 rel="noopener noreferrer"
-                                                 onClick={() => setWhatsappDropdown(null)}
-                                                 className="block text-xs text-gray-700 hover:bg-gray-50 rounded-lg px-3 py-2 transition-colors"
-                                               >
-                                                 {TABLE_NAMES[key] || key.replace(/_/g, " ")}
-                                               </a>
-                                             ))}
-                                           </div>
-                                         )}
+{whatsappDropdown === r.id && (
+                                            <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-xl shadow-lg p-2 w-64 z-10">
+                                              <div className="text-xs font-semibold text-gray-600 mb-2 px-2">Select message template:</div>
+                                              {Object.entries(WHATSAPP_TEMPLATES)
+                                                .filter(([key]) => key.startsWith(r.table))
+                                                .map(([key]) => (
+                                                  <a
+                                                    key={key}
+                                                    href={getWhatsappLink(r, key)}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    onClick={() => setWhatsappDropdown(null)}
+                                                    className="block text-xs text-gray-700 hover:bg-gray-50 rounded-lg px-3 py-2 transition-colors"
+                                                  >
+                                                    {key === r.table 
+                                                      ? `Initial Message` 
+                                                      : key.replace(`${r.table}_`, "").replace(/_/g, " ")}
+                                                  </a>
+                                                ))}
+                                            </div>
+                                          )}
                                        </div>
                                      )}
                                      <button onClick={() => copyToClipboard(JSON.stringify(r, null, 2), r.id)}
