@@ -24,6 +24,23 @@ const STATUS_FILTERS: RestaurantStatus[] = [
   "closed_permanently",
 ];
 
+const EXPIRY_DAYS = {
+  fssai: 365,
+  gst: 365,
+  bank_details: 180,
+};
+
+function getExpiryWarning(documentType: string, uploadedAt: string): string | null {
+  const days = EXPIRY_DAYS[documentType as keyof typeof EXPIRY_DAYS];
+  if (!days) return null;
+  const uploadDate = new Date(uploadedAt);
+  const expiryDate = new Date(uploadDate.getTime() + days * 24 * 60 * 60 * 1000);
+  const daysRemaining = Math.ceil((expiryDate.getTime() - new Date().getTime()) / (24 * 60 * 60 * 1000));
+  if (daysRemaining <= 0) return "Expired";
+  if (daysRemaining <= 30) return `${daysRemaining}d left`;
+  return null;
+}
+
 export default function RestaurantsPage() {
   const { profile, loading } = useAuth();
   const supabase = createClient();
@@ -34,6 +51,8 @@ export default function RestaurantsPage() {
   const [statusFilter, setStatusFilter] = useState<RestaurantStatus | "all">("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkStatus, setBulkStatus] = useState<RestaurantStatus | "">("");
   const [newRestaurant, setNewRestaurant] = useState({
     name: "",
     owner_name: "",
@@ -135,6 +154,28 @@ export default function RestaurantsPage() {
     (r.owner_name && r.owner_name.toLowerCase().includes(search.toLowerCase()))
   );
 
+  const handleBulkStatusChange = async () => {
+    if (!bulkStatus || selectedIds.length === 0) return;
+    const { error } = await supabase
+      .from("restaurants")
+      .update({ status: bulkStatus })
+      .in("id", selectedIds);
+    if (!error) {
+      toast.success(`Updated ${selectedIds.length} restaurants`);
+      setSelectedIds([]);
+      setBulkStatus("");
+      fetchRestaurants();
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.length === filteredRestaurants.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredRestaurants.map(r => r.id));
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -174,18 +215,48 @@ export default function RestaurantsPage() {
             </option>
           ))}
         </select>
+        {selectedIds.length > 0 && (
+          <div className="flex gap-2">
+            <select
+              value={bulkStatus}
+              onChange={(e) => setBulkStatus(e.target.value as RestaurantStatus)}
+              className="rounded-lg border border-input bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Bulk Action...</option>
+              {STATUS_FILTERS.map(status => (
+                <option key={status} value={status}>{RESTAURANT_STATUS_LABELS[status]}</option>
+              ))}
+            </select>
+            <Button size="sm" onClick={handleBulkStatusChange} disabled={!bulkStatus}>
+              Update {selectedIds.length}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setSelectedIds([])}>Clear</Button>
+          </div>
+        )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 {loadingRestaurants ? (
-           <p>Loading...</p>
-         ) : filteredRestaurants.length === 0 ? (
-           <p className="text-gray-500 col-span-full text-center py-8">No restaurants found</p>
-         ) : (
-           filteredRestaurants.map(restaurant => (
-             <RestaurantCard key={restaurant.id} restaurant={restaurant} executives={executives} />
-           ))
-         )}
+            <p>Loading...</p>
+          ) : filteredRestaurants.length === 0 ? (
+            <p className="text-gray-500 col-span-full text-center py-8">No restaurants found</p>
+          ) : (
+            filteredRestaurants.map(restaurant => (
+              <RestaurantCard
+                key={restaurant.id}
+                restaurant={restaurant}
+                executives={executives}
+                selected={selectedIds.includes(restaurant.id)}
+                onToggleSelect={(id) => {
+                  setSelectedIds((prev) =>
+                    prev.includes(id)
+                      ? prev.filter((i) => i !== id)
+                      : [...prev, id]
+                  );
+                }}
+              />
+            ))
+          )}
       </div>
 
       {showAddModal && (
@@ -330,7 +401,7 @@ export default function RestaurantsPage() {
   );
 }
 
-function RestaurantCard({ restaurant, executives }: { restaurant: Restaurant; executives: any[] }) {
+function RestaurantCard({ restaurant, executives, selected, onToggleSelect }: { restaurant: Restaurant; executives: any[]; selected: boolean; onToggleSelect: (id: string) => void }) {
   const supabase = createClient();
   const { profile } = useAuth();
   const { isAdmin: checkAdmin } = usePermissions();
@@ -351,6 +422,19 @@ function RestaurantCard({ restaurant, executives }: { restaurant: Restaurant; ex
     document_type: "fssai" as string,
     file: null as File | null,
   });
+  const [documents, setDocuments] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/workforce/restaurant-documents?restaurant_id=${restaurant.id}`, {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      const json = await res.json();
+      setDocuments(json.documents || []);
+    };
+    fetchDocuments();
+  }, [restaurant.id, supabase]);
   const [loggingVisit, setLoggingVisit] = useState(false);
 
   const handleStatusChange = async (newStatus: RestaurantStatus) => {
@@ -492,7 +576,15 @@ function RestaurantCard({ restaurant, executives }: { restaurant: Restaurant; ex
       <Card className="overflow-hidden hover:shadow-md transition-shadow">
         <CardHeader>
           <CardTitle className="text-base flex items-center justify-between">
-            <span>{restaurant.name}</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={() => onToggleSelect(restaurant.id)}
+                className="h-4 w-4"
+              />
+              <span>{restaurant.name}</span>
+            </div>
             <select
               value={restaurant.status}
               onChange={e => handleStatusChange(e.target.value as RestaurantStatus)}

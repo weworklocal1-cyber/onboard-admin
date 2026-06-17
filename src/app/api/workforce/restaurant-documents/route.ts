@@ -21,6 +21,32 @@ async function getSessionUser(request: Request) {
   return profile;
 }
 
+export async function GET(request: Request) {
+  const sessionUser = await getSessionUser(request);
+  if (!sessionUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const restaurant_id = searchParams.get("restaurant_id");
+
+  if (!restaurant_id) {
+    return NextResponse.json({ error: "Restaurant ID required" }, { status: 400 });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("restaurant_documents")
+    .select("*")
+    .eq("restaurant_id", restaurant_id)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ documents: data });
+}
+
 export async function POST(request: Request) {
   const sessionUser = await getSessionUser(request);
   if (!sessionUser) {

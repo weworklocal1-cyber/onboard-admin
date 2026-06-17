@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { createClient } from "@/lib/supabase/client";
-import { Notification } from "@/types/workforce";
+import type { Notification } from "@/types/workforce";
+import { toast } from "sonner";
 
 const NOTIFICATION_ICONS: Record<string, string> = {
   attendance_reminder: "📅",
@@ -25,6 +26,29 @@ export default function NotificationsPage() {
   const supabase = createClient();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [permission, setPermission] = useState<NotificationPermission | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setPermission(Notification.permission);
+    }
+  }, []);
+
+  const requestNotificationPermission = async () => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      const result = await Notification.requestPermission();
+      setPermission(result);
+      if (result === "granted") {
+        toast.success("Browser notifications enabled!");
+      }
+    }
+  };
+
+  const showBrowserNotification = (title: string, body: string) => {
+    if (typeof window !== "undefined" && "Notification" in window && permission === "granted") {
+      new Notification(title, { body, icon: "/favicon.ico" });
+    }
+  };
 
   useEffect(() => {
     if (!profile) return;
@@ -55,8 +79,10 @@ export default function NotificationsPage() {
           filter: `recipient_id=eq.${profile.id}`,
         },
         (payload) => {
-          setNotifications((prev) => [payload.new as Notification, ...prev]);
+          const newNotif = payload.new as Notification;
+          setNotifications((prev) => [newNotif, ...prev]);
           setUnreadCount((prev) => prev + 1);
+          showBrowserNotification(newNotif.title, newNotif.message || "");
         }
       )
       .subscribe();
@@ -93,11 +119,18 @@ export default function NotificationsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Notifications</h1>
-        {unreadCount > 0 && (
-          <Button variant="outline" size="sm" onClick={markAllAsRead}>
-            Mark All Read
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {permission !== "granted" && (
+            <Button variant="outline" size="sm" onClick={requestNotificationPermission}>
+              🔔 Enable Browser Notifications
+            </Button>
+          )}
+          {unreadCount > 0 && (
+            <Button variant="outline" size="sm" onClick={markAllAsRead}>
+              Mark All Read
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="space-y-4">

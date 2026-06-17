@@ -685,7 +685,7 @@ if (lat && lng) {
             className="text-xs px-2 py-1 rounded border bg-white mt-1 w-full"
           >
             <option value="">Assign Executive...</option>
-            {executives.map((exec) => (
+{executives.map((exec) => (
               <option key={exec.id} value={exec.id}>{exec.full_name}</option>
             ))}
           </select>
@@ -694,6 +694,16 @@ if (lat && lng) {
           <p className="text-xs text-brand-primary pt-1">
             👤 {territory.assigned_executive.full_name}
           </p>
+        )}
+        {territoryRestaurants.length > 0 && (
+          <div className="pt-2 border-t">
+            <p className="text-xs font-semibold text-gray-600 mb-1">Conversion Rate:</p>
+            <div className="flex gap-2 text-xs">
+              <span className="text-green-600">🎯 {territoryRestaurants.filter((r: any) => r.status === "live").length} live</span>
+              <span className="text-amber-600">⏳ {territoryRestaurants.filter((r: any) => r.status === "interested").length} interested</span>
+              <span className="text-gray-500">📊 {Math.round((territoryRestaurants.filter((r: any) => r.status === "live").length / territoryRestaurants.length) * 100)}%</span>
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>

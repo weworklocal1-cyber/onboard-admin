@@ -11,6 +11,12 @@ import { createClient } from "@/lib/supabase/client";
 import { FollowUp, FollowUpType } from "@/types/workforce";
 import { toast } from "sonner";
 
+const FOLLOWUP_TEMPLATES: Record<string, string> = {
+  call: "Hello! This is a follow-up call regarding {restaurant}. We're checking in to discuss next steps for partnership with LocalWala Food.",
+  visit: "Hello! I'm visiting regarding {restaurant} for LocalWala Food partnership. Looking forward to discussing our collaboration.",
+  whatsapp: "Hello! 👋 Just checking in on {restaurant}. Let's connect on LocalWala Food partnership. When are you available for a quick chat?",
+};
+
 export default function FollowUpsPage() {
   const { profile, loading } = useAuth();
   const supabase = createClient();
@@ -263,25 +269,37 @@ function FollowUpCard({ followUp }: { followUp: FollowUp }) {
            </div>
          </div>
 {followUp.status === 'pending' && (
-            <div className="flex gap-2 pt-3">
-              <Button size="sm" variant="outline" onClick={handleComplete} disabled={completing}>
-                ✅ Complete
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleCancel} disabled={cancelling}>
-                ❌ Cancel
-              </Button>
-            </div>
-          )}
-          {followUp.restaurant?.owner_phone && (
-            <a
-              href={`tel:${followUp.restaurant.owner_phone}`}
-              className="pt-2 inline-block"
-            >
-              <Button size="sm" variant="outline" className="w-full">
-                 📞 Call Now
-              </Button>
-            </a>
-          )}
+             <div className="flex gap-2 pt-3">
+               <Button size="sm" variant="outline" onClick={handleComplete} disabled={completing}>
+                 ✅ Complete
+               </Button>
+               <Button size="sm" variant="outline" onClick={handleCancel} disabled={cancelling}>
+                 ❌ Cancel
+               </Button>
+             </div>
+           )}
+           {followUp.restaurant?.owner_phone && (
+             <div className="flex gap-2 pt-2">
+               <a
+                 href={`tel:${followUp.restaurant.owner_phone}`}
+                 className="flex-1"
+               >
+                 <Button size="sm" variant="outline" className="w-full">
+                   📞 Call Now
+                 </Button>
+               </a>
+               <a
+                 href={`https://api.whatsapp.com/send?phone=91${followUp.restaurant.owner_phone.replace(/\D/g, "")}&text=${encodeURIComponent(FOLLOWUP_TEMPLATES[followUp.follow_up_type]?.replace("{restaurant}", followUp.restaurant?.name || "there") || "Hello!")}`}
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 className="flex-1"
+               >
+                 <Button size="sm" variant="outline" className="w-full">
+                   💬 WhatsApp
+                 </Button>
+               </a>
+             </div>
+           )}
         </CardContent>
       </Card>
     );
