@@ -52,4 +52,7 @@ declare module "lucide-react" {
   export const ClipboardList: React.FC<IconProps>;
   export const PlusCircle: React.FC<IconProps>;
   export const LogOut: React.FC<IconProps>;
+  export const Printer: React.FC<IconProps>;
+  export const Download: React.FC<IconProps>;
+  export const FileDown: React.FC<IconProps>;
 }

@@ -87,10 +87,16 @@ const ALL_NAV: NavItem[] = [
     icon: "📌",
     permission: "HR_ROLES",
   },
-  {
+{
     name: "HR Docs",
     href: "/workforce/hr",
     icon: "📄",
+    permission: "HR_ROLES",
+  },
+  {
+    name: "ID Cards",
+    href: "/workforce/id-cards",
+    icon: "🪪",
     permission: "HR_ROLES",
   },
   {
