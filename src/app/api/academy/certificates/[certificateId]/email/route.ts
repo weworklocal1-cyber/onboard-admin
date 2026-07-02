@@ -32,8 +32,9 @@ export async function POST(request: Request, { params }: { params: { certificate
     const userEmail = certificate.user_email || "";
     const userName = escapeHtml(certificate.user_name || "");
     const issuedDate = certificate.issued_at ? new Date(certificate.issued_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "";
-    const verifyUrl = `https://localwala.tech/academy/certificates/verify/${certificate.certificate_id}`;
-    const certificateUrl = `https://localwala.tech/academy/certificates/${certificate.certificate_id}`;
+    const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://localwala.tech";
+    const verifyUrl = `${BASE_URL}/academy/certificates/verify/${certificate.certificate_id}`;
+    const certificateUrl = `${BASE_URL}/academy/certificates/${certificate.certificate_id}`;
 
     if (!userEmail) {
       return NextResponse.json({ error: "User email not found" }, { status: 400 });

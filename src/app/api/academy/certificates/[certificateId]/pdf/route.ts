@@ -21,8 +21,10 @@ async function getSessionUser(request: Request) {
 }
 
 async function generateQrDataUrl(certificateId: string): Promise<string> {
+  const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://localwala.tech";
+  const verifyUrl = `${BASE_URL}/academy/certificates/verify/${certificateId}`;
   try {
-    return await QRCode.toDataURL(`https://localwala.tech/academy/certificates/verify/${certificateId}`, {
+    return await QRCode.toDataURL(verifyUrl, {
       width: 240,
       margin: 2,
       color: { dark: "#000000", light: "#FFFFFF" },
@@ -32,6 +34,7 @@ async function generateQrDataUrl(certificateId: string): Promise<string> {
     return "";
   }
 }
+
 
 export async function GET(request: Request, { params }: { params: { certificateId: string } }) {
   const sessionUser = await getSessionUser(request);
