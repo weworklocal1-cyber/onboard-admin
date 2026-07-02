@@ -365,11 +365,11 @@ export default function LearningPlayerPage({ params }: { params: { slug: string;
                   ))}
                   {mod.academy_quizzes && mod.academy_quizzes.length > 0 && (
                     <button
-                      onClick={() => router.push(`/academy/courses/${params.slug}/quiz/${mod.academy_quizzes[0].id}`)}
+                      onClick={() => router.push(`/academy/courses/${params.slug}/quiz/${mod.academy_quizzes![0].id}`)}
                       className="w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 text-academy-primary hover:bg-academy-light transition-colors mt-1"
                     >
                       <Award className="h-3 w-3" />
-                      {mod.academy_quizzes[0].title}
+                      {mod.academy_quizzes![0].title}
                       {isModuleComplete(mi) && <span className="text-xs text-green-600 ml-auto">Ready</span>}
                     </button>
                   )}
@@ -385,7 +385,7 @@ export default function LearningPlayerPage({ params }: { params: { slug: string;
                   <Award className="h-5 w-5 text-academy-primary" />
                   <span className="font-semibold text-sm">Course Complete!</span>
                 </div>
-                <p className="text-xs text-gray-500 mb-3">You've completed all lessons. Take the final assessment to earn your certificate.</p>
+                <p className="text-xs text-gray-500 mb-3">You&apos;ve completed all lessons. Take the final assessment to earn your certificate.</p>
                 <Link href={`/academy/courses/${params.slug}/final-assessment`}>
                   <Button className="w-full bg-academy-primary hover:bg-academy-secondary">
                     Take Final Assessment

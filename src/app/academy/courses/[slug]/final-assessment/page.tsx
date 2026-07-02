@@ -114,14 +114,14 @@ Check the browser console for more details.`);
     const scored = questions.map((q) => {
       const selected = (answerMap[q.id] || "").toLowerCase();
       const expected = (q.correct_option || "").toLowerCase();
-      const isCorrect = selected && expected && selected === expected;
+      const isCorrect = !!(selected && expected && selected === expected);
       if (isCorrect) correct++;
       return { id: q.id, selected, expected, isCorrect };
     });
     for (const q of questions) {
       const selected = (answerMap[q.id] || "").toLowerCase();
       const expected = (q.correct_option || "").toLowerCase();
-      const isCorrect = selected && expected && selected === expected;
+      const isCorrect = !!(selected && expected && selected === expected);
       await saveAnswer(q.id, answerMap[q.id] || "", isCorrect);
     }
     console.log("[FinalAssessment] scored:", JSON.stringify(scored), "correct:", correct, "pct:", Math.round((correct / questions.length) * 100));

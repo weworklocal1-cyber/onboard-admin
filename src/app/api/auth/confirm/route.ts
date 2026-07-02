@@ -15,8 +15,8 @@ export async function POST(request: Request) {
     let targetId = user_id;
 
     if (!targetId && email) {
-      const { data: users } = await supabaseAdmin.auth.admin.listUsers();
-      const found = users?.find((u) => u.email === email);
+      const { data } = await supabaseAdmin.auth.admin.listUsers();
+      const found = data?.users?.find((u) => u.email === email);
       targetId = found?.id;
     }
 

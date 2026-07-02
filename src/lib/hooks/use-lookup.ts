@@ -37,12 +37,7 @@ export function useLookups() {
     async function load() {
       setLoading(true);
       try {
-        const [_metadataRes, _deptRes, _roleRes, _empRes] = await Promise.all([
-          fetch("/api/system/metadata", { signal: controller.signal }),
-          fetch("/api/workforce/departments", { signal: controller.signal }),
-          fetch("/api/workforce/roles", { signal: controller.signal }),
-          fetch("/api/workforce/employment-types", { signal: controller.signal }),
-        ]);
+        const metadataRes = await fetch("/api/system/metadata", { signal: controller.signal });
 
         const metadata = (await metadataRes.json()) as Lookups;
         const deptData = metadata.departments || [];

@@ -16,6 +16,7 @@ interface Course {
   difficulty: string;
   passing_score: number;
   is_published: boolean;
+  thumbnail_url?: string;
 }
 
 const DIFFICULTY_OPTIONS = ["beginner", "intermediate", "advanced"];
@@ -54,7 +55,7 @@ export default function AdminCoursesPage() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ title: "", description: "", difficulty: "beginner", passing_score: 68, is_published: false });
+    setForm({ title: "", description: "", difficulty: "beginner", passing_score: 68, is_published: false, thumbnail_url: "" });
     setModalOpen(true);
   };
 

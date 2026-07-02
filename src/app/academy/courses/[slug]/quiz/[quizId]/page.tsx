@@ -269,7 +269,7 @@ export default function QuizPage({ params }: { params: { slug: string; quizId: s
             </div>
             <h1 className="text-3xl font-bold mb-2">No Questions Available</h1>
             <p className="text-gray-500 mb-6">
-              This quiz doesn't have any questions yet. Please contact your administrator.
+              This quiz doesn&apos;t have any questions yet. Please contact your administrator.
             </p>
             <div className="text-left bg-gray-50 p-4 rounded-lg text-sm text-gray-600 space-y-1">
               <p><strong>Quiz ID:</strong> {params?.quizId || "undefined params"}</p>
