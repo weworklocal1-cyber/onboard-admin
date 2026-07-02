@@ -38,10 +38,18 @@ export default async function VerifyEmployeePage({ params }: { params: Promise<{
           <p style={{ margin: "4px 0 0", fontSize: "12px", color: COLORS.primary }}>Employee Verification</p>
         </div>
         
-        {employee.profile_picture_url 
-          ? <img src={employee.profile_picture_url} alt={employee.full_name} style={{ width: "100px", height: "100px", borderRadius: "12px", margin: "0 auto 16px", objectFit: "cover" as const }} />
-          : <div style={{ width: "100px", height: "100px", borderRadius: "12px", margin: "0 auto 16px", background: COLORS.primary, display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 800, fontSize: "32px" }}>{initials}</div>
-        }
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "16px" }}>
+          {employee.profile_picture_url ? (
+            <img 
+              src={employee.profile_picture_url} 
+              alt={employee.full_name} 
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              style={{ width: "100px", height: "100px", borderRadius: "12px", objectFit: "cover" }} 
+            />
+          ) : (
+            <div style={{ width: "100px", height: "100px", borderRadius: "12px", background: COLORS.primary, display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 800, fontSize: "32px" }}>{initials}</div>
+          )}
+        </div>
         
         <div style={{ marginBottom: "12px" }}>
           <div style={{ fontSize: "10px", color: COLORS.primary, fontWeight: 600, textTransform: "uppercase" }}>Name</div>

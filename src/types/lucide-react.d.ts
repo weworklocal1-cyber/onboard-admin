@@ -55,4 +55,17 @@ declare module "lucide-react" {
   export const Printer: React.FC<IconProps>;
   export const Download: React.FC<IconProps>;
   export const FileDown: React.FC<IconProps>;
+  export const GraduationCap: React.FC<IconProps>;
+  export const BookOpen: React.FC<IconProps>;
+  export const Trophy: React.FC<IconProps>;
+  export const LifeBuoy: React.FC<IconProps>;
+  export const LayoutGrid: React.FC<IconProps>;
+  export const ChevronLeft: React.FC<IconProps>;
+  export const XCircle: React.FC<IconProps>;
+  export const Share2: React.FC<IconProps>;
+  export const MessageSquare: React.FC<IconProps>;
+  export const Settings: React.FC<IconProps>;
+  export const Plus: React.FC<IconProps>;
+  export const Edit: React.FC<IconProps>;
+  export const Trash2: React.FC<IconProps>;
 }

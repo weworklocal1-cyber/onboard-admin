@@ -47,6 +47,13 @@ module.exports = {
           dark: "#CC5500",
           light: "rgba(255, 107, 0, 0.1)",
         },
+        academy: {
+          primary: "hsl(var(--academy-primary))",
+          secondary: "hsl(var(--academy-secondary))",
+          accent: "hsl(var(--academy-accent))",
+          light: "hsl(160 84% 95%)",
+          background: "hsl(160 84% 97%)",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

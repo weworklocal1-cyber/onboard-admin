@@ -5,7 +5,19 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "**",
+        hostname: "localwala.tech",
+      },
+      {
+        protocol: "https",
+        hostname: "www.localwala.tech",
+      },
+      {
+        protocol: "https",
+        hostname: "localwalafood.com",
+      },
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
       },
     ],
     formats: ["image/avif", "image/webp"],

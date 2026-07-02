@@ -32,6 +32,10 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 27 100% 50%;
     --radius: 0.75rem;
+
+    --academy-primary: 160 84% 33%;
+    --academy-secondary: 187 92% 42%;
+    --academy-accent: 153 86% 35%;
   }
 }
 
@@ -55,6 +59,9 @@
   }
   .gradient-primary {
     background: linear-gradient(135deg, #FF6B00, #FF8A33);
+  }
+  .gradient-academy {
+    background: linear-gradient(135deg, #059669, #0891b2);
   }
   .gradient-subtle {
     background: linear-gradient(180deg, #FFF4EB 0%, #FFFFFF 50%, #F8F9FA 100%);

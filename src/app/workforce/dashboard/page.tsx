@@ -9,17 +9,18 @@ import { useAuth } from "@/lib/hooks/use-auth";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
 import Link from "next/link";
-import { 
-  BarChart3, 
-  CheckCircle2, 
-  AlertCircle, 
-  Clock, 
-  MapPin, 
-  PlusCircle, 
-  TrendingUp, 
+import {
+  BarChart3,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  MapPin,
+  PlusCircle,
+  TrendingUp,
   AlertTriangle,
   ClipboardList,
-  Award
+  Award,
+  BookOpen,
 } from "lucide-react";
 
 import { Task, Attendance, DailyUpdate, PRIORITY_COLORS } from "@/types/workforce";
@@ -504,6 +505,90 @@ function EmployeeDashboardView({ profile }: { profile: any }) {
               {dailyUpdate ? "View Submission" : "Submit Update"}
             </Button>
           </Link>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+        <CardContent className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+              <BookOpen className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold">WeWorkLocal Academy</h3>
+              <p className="text-sm text-white/80">
+                Complete the Understanding Local Commerce course to prepare for internships and earn your certificate.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <a href="/academy/courses">
+              <button className="bg-white text-emerald-700 hover:bg-white/90 px-4 py-2 rounded-lg text-sm font-semibold">
+                Browse Certifications
+              </button>
+            </a>
+            <a href="/academy/dashboard">
+              <button className="bg-emerald-700 text-white hover:bg-emerald-800 px-4 py-2 rounded-lg text-sm font-semibold border border-white/30">
+                Open Academy
+              </button>
+            </a>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+        <CardContent className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+              <BookOpen className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold">WeWorkLocal Academy</h3>
+              <p className="text-sm text-white/80">
+                Complete the Understanding Local Commerce course to prepare for internships and earn your certificate.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <a href="/academy/courses">
+              <button className="bg-white text-emerald-700 hover:bg-white/90 px-4 py-2 rounded-lg text-sm font-semibold">
+                Browse Certifications
+              </button>
+            </a>
+            <a href="/academy/dashboard">
+              <button className="bg-emerald-700 text-white hover:bg-emerald-800 px-4 py-2 rounded-lg text-sm font-semibold border border-white/30">
+                Open Academy
+              </button>
+            </a>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+        <CardContent className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+              <BookOpen className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold">WeWorkLocal Academy</h3>
+              <p className="text-sm text-white/80">
+                Complete the Understanding Local Commerce course to prepare for internships and earn your certificate.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <a href="/academy/courses">
+              <button className="bg-white text-emerald-700 hover:bg-white/90 px-4 py-2 rounded-lg text-sm font-semibold">
+                Browse Certifications
+              </button>
+            </a>
+            <a href="/academy/dashboard">
+              <button className="bg-emerald-700 text-white hover:bg-emerald-800 px-4 py-2 rounded-lg text-sm font-semibold border border-white/30">
+                Open Academy
+              </button>
+            </a>
+          </div>
         </CardContent>
       </Card>
     </div>
