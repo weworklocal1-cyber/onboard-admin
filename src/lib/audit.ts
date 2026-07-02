@@ -4,8 +4,8 @@ export async function logAudit(
   action: string,
   table_name: string,
   record_id: string,
-  old_values?: Record<string, any>,
-  new_values?: Record<string, any>,
+  old_values?: Record<string, unknown>,
+  new_values?: Record<string, unknown>,
   user_id?: string
 ) {
   const { error } = await supabaseAdmin.from("audit_logs").insert({

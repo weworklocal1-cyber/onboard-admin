@@ -15,7 +15,7 @@ export async function getPermissionRules() {
   }
 
   const map: Record<string, string[]> = {};
-  data.forEach((rule: any) => {
+  data.forEach((rule) => {
     map[rule.group_name] = rule.role_names;
   });
 

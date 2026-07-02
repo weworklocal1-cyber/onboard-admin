@@ -34,9 +34,9 @@ const TABLE_COLUMNS: Record<string, string[]> = {
   ],
 };
 
-export async function submitLead(table: string, data: Record<string, any>) {
+export async function submitLead(table: string, data: Record<string, unknown>) {
   const allowed = new Set(TABLE_COLUMNS[table] || []);
-  const row: Record<string, any> = { status: "new" };
+  const row: Record<string, unknown> = { status: "new" };
 
   for (const [k, v] of Object.entries(data)) {
     const snake = toSnake(k);
