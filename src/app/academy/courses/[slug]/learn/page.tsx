@@ -9,6 +9,8 @@ import { ChevronLeft, ChevronRight, CheckCircle2, Clock, FileText, Download, Boo
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import DOMPurify from "dompurify";
+import { marked } from "marked";
+
 
 interface Lesson {
   id: string;
@@ -258,7 +260,7 @@ export default function LearningPlayerPage({ params }: { params: { slug: string;
                   )}
                 </div>
                 {currentLesson.content_md ? (
-                  <div className="prose max-w-none leading-relaxed" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(currentLesson.content_md) }} />
+                  <div className="prose max-w-none leading-relaxed" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(marked.parse(currentLesson.content_md) as string) }} />
                 ) : (
                   <p className="text-gray-500">Lesson content will appear here</p>
                 )}
