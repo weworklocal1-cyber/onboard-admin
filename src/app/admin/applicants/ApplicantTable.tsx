@@ -20,8 +20,10 @@ type Application = {
 
 type Props = {
   applications: Application[];
+  onSend?: (app: Application) => void;
 };
-export default function ApplicantTable({ applications }: Props) {
+
+export default function ApplicantTable({ applications, onSend }: Props) {
   const defaultTemplateKey = 'initial';
   const handleSendEmail = (app: Application) => {
     const tmpl = templates[defaultTemplateKey];
@@ -31,6 +33,7 @@ export default function ApplicantTable({ applications }: Props) {
     );
     const mailto = `mailto:${app.email}?subject=${subject}&body=${body}`;
     window.open(mailto, '_blank');
+    if (onSend) onSend(app);
   };
 
   const whatsappLink = (app: Application) => {
