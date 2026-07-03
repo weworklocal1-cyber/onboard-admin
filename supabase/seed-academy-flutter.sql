@@ -4,7 +4,7 @@
 -- Compatible with: Supabase / PostgreSQL
 -- ============================================================
 -- Contains:
---  1 Course | 5 Modules | 20 Lessons | 5 Module Quizzes (6 Q each = 30)
+--  1 Course | 5 Modules | 20 Lessons | 5 Module Quizzes (5 Q each = 25)
 --  1 Final Assessment (30 unique questions)
 -- ============================================================
 
@@ -1500,7 +1500,7 @@ PlatformDispatcher.instance.onError = (error, stack) {
 on conflict (id) do nothing;
 
 --------------------------------------------------------------
--- 4. MODULE QUIZZES (5 quizzes, 6 questions each = 30 total)
+-- 4. MODULE QUIZZES (5 quizzes, 5 questions each = 25 total)
 --------------------------------------------------------------
 insert into academy_quizzes (
   id, module_id, title, passing_score, time_limit_minutes
@@ -1513,7 +1513,7 @@ insert into academy_quizzes (
 on conflict do nothing;
 
 --------------------------------------------------------------
--- 5. MODULE QUIZ QUESTIONS (6 per quiz = 30 total)
+-- 5. MODULE QUIZ QUESTIONS (5 per quiz = 25 total)
 --------------------------------------------------------------
 insert into academy_questions (
   id, quiz_id, question, option_a, option_b, option_c, option_d,
@@ -1524,380 +1524,195 @@ insert into academy_questions (
 -- Quiz 1: Module 1 — Getting Started with Flutter & Dart
 -- =====================================================
   (
-    'e1000000-0000-0000-0000-000000000001',
-    'd1000000-0000-0000-0000-000000000001',
-    'Flutter compiles to:',
-    'JavaScript in a WebView',
-    'Native ARM code',
-    'Java bytecode',
-    'Python scripts',
-    'b',
-    'Flutter compiles Dart directly to native ARM machine code for high performance.',
-    'easy', 'Flutter Basics', '{flutter,compilation}'
+    'e1000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000001',
+    'Which widget is commonly used to display a scrollable list in Flutter?',
+    'GridView', 'ListView', 'Column', 'Stack',
+    'b', 'ListView displays a scrollable list of widgets.',
+    'easy', 'Flutter Basics', '{flutter,widgets}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000002',
-    'd1000000-0000-0000-0000-000000000001',
-    'Which command checks your Flutter environment for issues?',
-    'flutter check',
-    'flutter doctor',
-    'flutter diagnose',
-    'flutter verify',
-    'b',
-    'flutter doctor scans your system and reports any missing dependencies.',
-    'easy', 'Setup', '{flutter,cli}'
+    'e1000000-0000-0000-0000-000000000002', 'd1000000-0000-0000-0000-000000000001',
+    'Which command creates a new Flutter project?',
+    'flutter init', 'flutter new', 'flutter create', 'flutter build',
+    'c', 'flutter create generates a new Flutter project.',
+    'easy', 'Flutter CLI', '{flutter,cli}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000003',
-    'd1000000-0000-0000-0000-000000000001',
-    'Where does your Dart source code live in a Flutter project?',
-    'src/',
-    'lib/',
-    'app/',
-    'dart/',
-    'b',
-    'The lib/ directory is the default location for all Dart source files.',
+    'e1000000-0000-0000-0000-000000000003', 'd1000000-0000-0000-0000-000000000001',
+    'Which file contains Flutter project dependencies?',
+    'pubspec.yaml', 'build.gradle', 'package.json', 'Podfile',
+    'a', 'pubspec.yaml lists Dart dependencies for a Flutter project.',
     'easy', 'Project Structure', '{flutter,project}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000004',
-    'd1000000-0000-0000-0000-000000000001',
-    'What file declares dependencies and assets in a Flutter project?',
-    'package.json',
-    'build.gradle',
-    'pubspec.yaml',
-    'Podfile',
-    'c',
-    'pubspec.yaml is the Dart/Flutter package manifest for dependencies, assets, and metadata.',
-    'easy', 'Project Structure', '{flutter,pubspec}'
+    'e1000000-0000-0000-0000-000000000004', 'd1000000-0000-0000-0000-000000000003',
+    'Which widget should be used when the UI changes over time?',
+    'Container', 'StatelessWidget', 'Scaffold', 'StatefulWidget',
+    'd', 'StatefulWidget holds mutable state that can change.',
+    'easy', 'Flutter Widgets', '{flutter,stateless}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000005',
-    'd1000000-0000-0000-0000-000000000001',
-    'Hot Reload in Flutter preserves:',
-    'Nothing — restarts the app fully',
-    'App state while injecting updated code',
-    'Only the splash screen',
-    'Database connections only',
-    'b',
-    'Hot Reload injects updated source code into the running Dart VM while preserving state.',
-    'medium', 'Development', '{flutter,hot-reload}'
-  ),
-  (
-    'e1000000-0000-0000-0000-000000000006',
-    'd1000000-0000-0000-0000-000000000001',
-    'MaterialApp provides:',
-    'Only a splash screen',
-    'Theming, navigation, and localization infrastructure',
-    'Database access',
-    'Push notification handling',
-    'b',
-    'MaterialApp is the root widget that provides theme, routing, and locale support.',
-    'medium', 'Flutter Widgets', '{flutter,materialapp}'
+    'e1000000-0000-0000-0000-000000000005', 'd1000000-0000-0000-0000-000000000001',
+    'Flutter applications are written in which language?',
+    'Java', 'Dart', 'Kotlin', 'Swift',
+    'b', 'Flutter uses the Dart programming language.',
+    'easy', 'Flutter Basics', '{flutter,dart}'
   ),
 
 -- =====================================================
 -- Quiz 2: Module 2 — Dart Language Mastery
 -- =====================================================
   (
-    'e1000000-0000-0000-0000-000000000007',
-    'd1000000-0000-0000-0000-000000000002',
-    'What is the difference between final and const in Dart?',
-    'final is compile-time, const is runtime',
-    'const is compile-time, final is runtime',
-    'They are identical',
-    'const allows reassignment',
-    'b',
-    'const values must be known at compile-time; final values are set once at runtime.',
-    'easy', 'Dart Basics', '{dart,variables}'
+    'e1000000-0000-0000-0000-000000000006', 'd1000000-0000-0000-0000-000000000003',
+    'Which method notifies Flutter to rebuild a StatefulWidget?',
+    'setState()', 'build()', 'initState()', 'dispose()',
+    'a', 'Calling setState schedules a rebuild.',
+    'easy', 'State Management', '{flutter,setstate}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000008',
-    'd1000000-0000-0000-0000-000000000002',
-    'The ?? operator in Dart is called:',
-    'Ternary operator',
-    'Null-coalescing operator',
-    'Spread operator',
-    'Assignment operator',
-    'b',
-    'The ?? operator returns the left operand if it is non-null, otherwise the right operand.',
-    'easy', 'Null Safety', '{dart,null-safety}'
+    'e1000000-0000-0000-0000-000000000007', 'd1000000-0000-0000-0000-000000000003',
+    'Which widget allows children to overlap each other?',
+    'Column', 'ListView', 'Wrap', 'Stack',
+    'd', 'Stack positions children on top of each other.',
+    'easy', 'Flutter Layout', '{flutter,stack}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000009',
-    'd1000000-0000-0000-0000-000000000002',
-    'A factory constructor in Dart is used for:',
-    'Creating abstract classes',
-    'Returning an existing instance or a subtype',
-    'Defining global variables',
-    'Running tests',
-    'b',
-    'Factory constructors can return cached instances, subtypes, or computed objects.',
-    'medium', 'OOP', '{dart,constructors}'
+    'e1000000-0000-0000-0000-000000000008', 'd1000000-0000-0000-0000-000000000001',
+    'Which command checks your Flutter installation?',
+    'flutter check', 'flutter doctor', 'flutter verify', 'flutter inspect',
+    'b', 'flutter doctor reports any missing dependencies.',
+    'easy', 'Flutter CLI', '{flutter,cli}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000010',
-    'd1000000-0000-0000-0000-000000000002',
-    'Which Dart feature allows you to add methods to existing classes?',
-    'Inheritance',
-    'Extensions',
-    'Mixins',
-    'Generics',
-    'b',
-    'Extensions let you add new functionality to existing types without modifying them.',
-    'medium', 'Dart Advanced', '{dart,extensions}'
+    'e1000000-0000-0000-0000-000000000009', 'd1000000-0000-0000-0000-000000000001',
+    'Which widget provides the basic Material Design page layout?',
+    'MaterialApp', 'Container', 'Scaffold', 'SafeArea',
+    'c', 'Scaffold implements the visual layout structure.',
+    'easy', 'Flutter Widgets', '{flutter,scaffold}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000011',
-    'd1000000-0000-0000-0000-000000000002',
-    'async* in Dart is used to create:',
-    'A Future',
-    'A synchronous generator',
-    'An asynchronous generator (Stream)',
-    'A class constructor',
-    'c',
-    'async* defines a function that yields values as a Stream over time.',
-    'medium', 'Async Dart', '{dart,streams,async}'
-  ),
-  (
-    'e1000000-0000-0000-0000-000000000012',
-    'd1000000-0000-0000-0000-000000000002',
-    'What happens when you use the ! operator on a null value?',
-    'Returns a default value',
-    'Throws a runtime exception',
-    'Returns an empty string',
-    'Silently ignores the null',
-    'b',
-    'The ! (bang) operator asserts non-null and throws if the value is actually null.',
-    'medium', 'Null Safety', '{dart,null-safety}'
+    'e1000000-0000-0000-0000-000000000010', 'd1000000-0000-0000-0000-000000000003',
+    'Which widget loads an image from the internet?',
+    'Image.network', 'Image.asset', 'Image.file', 'AssetImage',
+    'a', 'Image.network fetches and displays a remote image.',
+    'easy', 'Flutter Media', '{flutter,images}'
   ),
 
 -- =====================================================
 -- Quiz 3: Module 3 — Flutter UI & Widget Deep Dive
 -- =====================================================
   (
-    'e1000000-0000-0000-0000-000000000013',
-    'd1000000-0000-0000-0000-000000000003',
-    'When should you use StatefulWidget over StatelessWidget?',
-    'Always — StatelessWidget is deprecated',
-    'When the widget owns mutable state that changes over time',
-    'Only for animations',
-    'Only for network calls',
-    'b',
-    'StatefulWidget is needed when the widget must track and respond to mutable internal state.',
-    'easy', 'Flutter Widgets', '{flutter,stateful}'
+    'e1000000-0000-0000-0000-000000000011', 'd1000000-0000-0000-0000-000000000002',
+    'Which keyword creates a compile-time constant?',
+    'final', 'const', 'static', 'var',
+    'b', 'const defines a compile-time constant.',
+    'easy', 'Dart Basics', '{dart,constants}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000014',
-    'd1000000-0000-0000-0000-000000000003',
-    'Which widget is used to overlay elements on top of each other?',
-    'Column',
-    'Row',
-    'Stack',
-    'Wrap',
-    'c',
-    'Stack allows children to overlap, useful for badges, overlays, and floating elements.',
-    'easy', 'Layout', '{flutter,stack}'
+    'e1000000-0000-0000-0000-000000000012', 'd1000000-0000-0000-0000-000000000002',
+    'Which operator is used for null-coalescing in Dart?',
+    '?.', '?:', '??', '!',
+    'c', 'The ?? operator returns the left operand if non‑null.',
+    'easy', 'Dart Operators', '{dart,null}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000015',
-    'd1000000-0000-0000-0000-000000000003',
-    'useMaterial3: true in ThemeData enables:',
-    'Material Design 1 widgets',
-    'Material Design 3 (Material You) components',
-    'iOS-style Cupertino widgets',
-    'Web-only styling',
-    'b',
-    'Material 3 (Material You) brings dynamic color, updated components, and modern design.',
-    'easy', 'Theming', '{flutter,material3}'
+    'e1000000-0000-0000-0000-000000000013', 'd1000000-0000-0000-0000-000000000004',
+    'Which widget expands to fill available space in a Row or Column?',
+    'Expanded', 'SizedBox', 'Padding', 'Center',
+    'a', 'Expanded takes remaining space.',
+    'easy', 'Flutter Layout', '{flutter,expanded}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000016',
-    'd1000000-0000-0000-0000-000000000003',
-    'ListView.builder is preferred over ListView because:',
-    'It has more styling options',
-    'It lazily builds only visible items, saving memory',
-    'It supports horizontal scrolling only',
-    'It does not require a builder function',
-    'b',
-    'ListView.builder creates items on-demand as they scroll into view.',
-    'medium', 'Performance', '{flutter,listview}'
+    'e1000000-0000-0000-0000-000000000014', 'd1000000-0000-0000-0000-000000000004',
+    'Which package is recommended for declarative routing?',
+    'auto_route', 'Navigator', 'route_manager', 'go_router',
+    'd', 'go_router provides declarative routing.',
+    'easy', 'Flutter Navigation', '{flutter,routing}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000017',
-    'd1000000-0000-0000-0000-000000000003',
-    'SliverAppBar is typically used inside:',
-    'ListView',
-    'CustomScrollView',
-    'Column',
-    'Container',
-    'b',
-    'SliverAppBar works with CustomScrollView to create collapsing/expanding app bars.',
-    'medium', 'Advanced UI', '{flutter,slivers}'
-  ),
-  (
-    'e1000000-0000-0000-0000-000000000018',
-    'd1000000-0000-0000-0000-000000000003',
-    'LayoutBuilder gives you access to:',
-    'The device OS version',
-    'The parent widget constraints (available width/height)',
-    'The app theme colors',
-    'The navigation stack',
-    'b',
-    'LayoutBuilder provides BoxConstraints so you can build responsive layouts.',
-    'medium', 'Responsive Design', '{flutter,responsive}'
+    'e1000000-0000-0000-0000-000000000015', 'd1000000-0000-0000-0000-000000000004',
+    'Which widget is commonly used to validate user input?',
+    'Text', 'Form', 'Card', 'Expanded',
+    'b', 'Form groups input fields and provides validation.',
+    'easy', 'Flutter Forms', '{flutter,form}'
   ),
 
 -- =====================================================
 -- Quiz 4: Module 4 — State Management & Backend Integration
 -- =====================================================
   (
-    'e1000000-0000-0000-0000-000000000019',
-    'd1000000-0000-0000-0000-000000000004',
-    'In Provider, notifyListeners() is called to:',
-    'Log a message',
-    'Trigger a UI rebuild for all widgets watching this model',
-    'Save data to disk',
-    'Send a push notification',
-    'b',
-    'notifyListeners() tells all Consumer/watch widgets to rebuild with updated data.',
-    'easy', 'State Management', '{flutter,provider}'
+    'e1000000-0000-0000-0000-000000000016', 'd1000000-0000-0000-0000-000000000002',
+    'Which command downloads packages listed in pubspec.yaml?',
+    'flutter pub get', 'flutter install', 'flutter sync', 'flutter update',
+    'a', 'flutter pub get fetches dependencies.',
+    'easy', 'Flutter CLI', '{flutter,cli}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000020',
-    'd1000000-0000-0000-0000-000000000004',
-    'Supabase is best described as:',
-    'A CSS framework',
-    'An open-source Firebase alternative built on PostgreSQL',
-    'A mobile testing tool',
-    'A version control system',
-    'b',
-    'Supabase provides auth, database, storage, and real-time subscriptions on top of PostgreSQL.',
-    'easy', 'Backend', '{supabase,backend}'
+    'e1000000-0000-0000-0000-000000000017', 'd1000000-0000-0000-0000-000000000004',
+    'Which lifecycle method runs once when a StatefulWidget is created?',
+    'build()', 'dispose()', 'didUpdateWidget()', 'initState()',
+    'd', 'initState is called once when the widget is inserted.',
+    'easy', 'Flutter Lifecycle', '{flutter,lifecycle}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000021',
-    'd1000000-0000-0000-0000-000000000004',
-    'GoRouter redirect is useful for:',
-    'Styling navigation bars',
-    'Protecting routes based on auth state',
-    'Caching images',
-    'Handling animations',
-    'b',
-    'GoRouter redirect intercepts navigation and can send unauthenticated users to login.',
-    'medium', 'Navigation', '{flutter,gorouter}'
+    'e1000000-0000-0000-0000-000000000018', 'd1000000-0000-0000-0000-000000000005',
+    'Which package should be used to store JWT tokens securely?',
+    'SharedPreferences', 'flutter_secure_storage', 'Hive', 'SQLite',
+    'b', 'flutter_secure_storage encrypts data on device.',
+    'easy', 'Security', '{flutter,secure-storage}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000022',
-    'd1000000-0000-0000-0000-000000000004',
-    'flutter_secure_storage should be used instead of SharedPreferences for:',
-    'Storing user preferences like dark mode',
-    'Storing sensitive data like JWT tokens',
-    'Caching images',
-    'Storing build numbers',
-    'b',
-    'flutter_secure_storage encrypts data, making it safe for tokens and secrets.',
-    'medium', 'Security', '{security,storage}'
+    'e1000000-0000-0000-0000-000000000019', 'd1000000-0000-0000-0000-000000000002',
+    'Which Flutter feature lets you see code changes instantly without restarting?',
+    'Hot Restart', 'Full Restart', 'Hot Reload', 'Rebuild',
+    'c', 'Hot Reload injects updated code while preserving state.',
+    'easy', 'Flutter Development', '{flutter,hot-reload}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000023',
-    'd1000000-0000-0000-0000-000000000004',
-    'Supabase .stream() is used for:',
-    'Downloading large files',
-    'Real-time subscriptions that update UI on data changes',
-    'Running batch SQL queries',
-    'Compressing images',
-    'b',
-    '.stream() listens for INSERT, UPDATE, DELETE events and pushes changes to the client.',
-    'medium', 'Real-Time', '{supabase,realtime}'
-  ),
-  (
-    'e1000000-0000-0000-0000-000000000024',
-    'd1000000-0000-0000-0000-000000000004',
-    'The offline-first pattern in LocalWala means:',
-    'The app only works offline',
-    'Data is loaded from local cache first, then refreshed from the server',
-    'The app disables WiFi',
-    'Data is never cached',
-    'b',
-    'Offline-first shows cached data instantly and refreshes in the background.',
-    'medium', 'Architecture', '{offline,caching}'
+    'e1000000-0000-0000-0000-000000000020', 'd1000000-0000-0000-0000-000000000004',
+    'Which widget rebuilds automatically when a Stream emits new data?',
+    'StreamBuilder', 'FutureBuilder', 'Builder', 'Consumer',
+    'a', 'StreamBuilder listens to a Stream and rebuilds.',
+    'easy', 'Flutter Async', '{flutter,stream}'
   ),
 
 -- =====================================================
 -- Quiz 5: Module 5 — Testing, Deployment & Production Readiness
 -- =====================================================
   (
-    'e1000000-0000-0000-0000-000000000025',
-    'd1000000-0000-0000-0000-000000000005',
-    'testWidgets in Flutter is used for:',
-    'Unit testing pure Dart logic',
-    'Testing widget rendering and user interactions',
-    'Integration testing on a device',
-    'Performance profiling',
-    'b',
-    'testWidgets pumps widgets and lets you tap, type, and assert on rendered UI.',
-    'easy', 'Testing', '{flutter,widget-test}'
+    'e1000000-0000-0000-0000-000000000021', 'd1000000-0000-0000-0000-000000000005',
+    'Which backend platform provides PostgreSQL, Authentication, and Storage?',
+    'Firebase', 'Supabase', 'MongoDB', 'MySQL',
+    'b', 'Supabase offers these services out of the box.',
+    'easy', 'Backend', '{supabase}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000026',
-    'd1000000-0000-0000-0000-000000000005',
-    'flutter build appbundle produces:',
-    'An APK file',
-    'An AAB file required for Play Store',
-    'An iOS IPA file',
-    'A web bundle',
-    'b',
-    'Android App Bundles (AAB) are required by Google Play Store for new app submissions.',
-    'easy', 'Deployment', '{flutter,build,android}'
+    'e1000000-0000-0000-0000-000000000022', 'd1000000-0000-0000-0000-000000000005',
+    'Which widget improves rendering performance by isolating repaint operations?',
+    'RepaintBox', 'PerformanceWidget', 'RepaintBoundary', 'RenderObject',
+    'c', 'RepaintBoundary prevents unnecessary repaints.',
+    'easy', 'Performance', '{flutter,repaint}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000027',
-    'd1000000-0000-0000-0000-000000000005',
-    'Golden tests in Flutter compare:',
-    'Execution time between builds',
-    'Current widget rendering against a saved reference screenshot',
-    'Number of widgets in the tree',
-    'Memory usage',
-    'b',
-    'Golden tests catch unintended visual regressions by comparing pixel output.',
-    'medium', 'Testing', '{flutter,golden-test}'
+    'e1000000-0000-0000-0000-000000000023', 'd1000000-0000-0000-0000-000000000002',
+    'Which keyword is used to create an asynchronous generator in Dart?',
+    'async*', 'async', 'sync', 'sync*',
+    'a', 'async* defines an async generator yielding a Stream.',
+    'easy', 'Dart Async', '{dart,async}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000028',
-    'd1000000-0000-0000-0000-000000000005',
-    'ProGuard in Android release builds is used for:',
-    'Adding more features',
-    'Shrinking, obfuscating, and optimizing code',
-    'Managing push notifications',
-    'Database migrations',
-    'b',
-    'ProGuard reduces APK size and makes reverse-engineering harder.',
-    'medium', 'Android', '{proguard,android}'
+    'e1000000-0000-0000-0000-000000000024', 'd1000000-0000-0000-0000-000000000005',
+    'Which function is used to write widget tests in Flutter?',
+    'test()', 'integrationTest()', 'widgetTest()', 'testWidgets()',
+    'd', 'testWidgets() writes widget tests.',
+    'easy', 'Testing', '{flutter,testing}'
   ),
   (
-    'e1000000-0000-0000-0000-000000000029',
-    'd1000000-0000-0000-0000-000000000005',
-    'GitHub Actions in a Flutter CI/CD pipeline automates:',
-    'Writing code for you',
-    'Building, testing, and deploying on every push',
-    'Managing your GitHub profile',
-    'Designing UI mockups',
-    'b',
-    'CI/CD pipelines run tests and builds automatically on code changes.',
-    'medium', 'DevOps', '{ci-cd,github-actions}'
-  ),
-  (
-    'e1000000-0000-0000-0000-000000000030',
-    'd1000000-0000-0000-0000-000000000005',
-    'Firebase Crashlytics helps by:',
-    'Building the UI faster',
-    'Reporting crashes and non-fatal errors in production',
-    'Managing DNS records',
-    'Compiling Dart code',
-    'b',
-    'Crashlytics captures crash reports with stack traces for debugging production issues.',
-    'medium', 'Monitoring', '{crashlytics,monitoring}'
+    'e1000000-0000-0000-0000-000000000025', 'd1000000-0000-0000-0000-000000000005',
+    'Which class manages navigation between screens?',
+    'Router', 'Navigator', 'RouteManager', 'PageController',
+    'b', 'Navigator pushes and pops routes.',
+    'easy', 'Navigation', '{flutter,navigation}'
   )
 on conflict (id) do nothing;
 
@@ -1995,14 +1810,14 @@ insert into academy_questions (
   (
     'e1000000-0000-0000-0000-000000000206',
     'f1000000-0000-0000-0000-000000000001',
-    'Which method triggers a StatefulWidget to rebuild?',
-    'build()',
-    'setState()',
+    'Which function must be called before runApp to initialize Flutter bindings?',
+    'runApp()',
+    'WidgetsFlutterBinding.ensureInitialized()',
+    'main()',
     'initState()',
-    'dispose()',
     'b',
-    'setState() marks the widget as dirty and schedules a rebuild.',
-    'easy', 'Flutter', '{flutter,setstate}'
+    'WidgetsFlutterBinding.ensureInitialized() prepares the framework before runApp.',
+    'medium', 'Flutter', '{flutter,binding}'
   ),
   (
     'e1000000-0000-0000-0000-000000000207',
@@ -2079,25 +1894,25 @@ insert into academy_questions (
   (
     'e1000000-0000-0000-0000-000000000213',
     'f1000000-0000-0000-0000-000000000001',
-    'Which package is recommended for declarative routing in Flutter?',
-    'url_launcher',
-    'go_router',
-    'http',
-    'path_provider',
+    'Which widget is used to show a temporary message at the bottom of the screen?',
+    'AlertDialog',
+    'SnackBar',
+    'Toast',
+    'BottomSheet',
     'b',
-    'go_router is Google''s recommended package for declarative routing with deep link support.',
-    'medium', 'Navigation', '{flutter,gorouter}'
+    'SnackBar displays brief messages at the bottom of the screen via ScaffoldMessenger.',
+    'easy', 'Flutter', '{flutter,snackbar}'
   ),
   (
     'e1000000-0000-0000-0000-000000000214',
     'f1000000-0000-0000-0000-000000000001',
-    'The initState() method is called:',
-    'Every time the widget rebuilds',
-    'Once when the StatefulWidget is first inserted into the tree',
-    'When the app is minimized',
-    'When the user taps the back button',
+    'What is the purpose of the didChangeDependencies() method in a StatefulWidget?',
+    'To destroy the widget',
+    'To respond to inherited widget changes like Theme or Provider',
+    'To rebuild the widget every frame',
+    'To initialize controllers',
     'b',
-    'initState() runs once for initialization — subscriptions, controllers, etc.',
+    'didChangeDependencies() is called when a widget depends on an InheritedWidget that changes.',
     'medium', 'Flutter Lifecycle', '{flutter,lifecycle}'
   ),
   (
@@ -2279,18 +2094,6 @@ insert into academy_questions (
     'b',
     'Unit tests should be the most numerous: fast, cheap, and test logic in isolation.',
     'hard', 'Testing', '{testing,pyramid}'
-  ),
-  (
-    'e1000000-0000-0000-0000-000000000230',
-    'f1000000-0000-0000-0000-000000000001',
-    'PlatformDispatcher.instance.onError in Flutter catches:',
-    'Only synchronous errors',
-    'Uncaught asynchronous errors across the app',
-    'Build warnings only',
-    'Lint errors',
-    'b',
-    'PlatformDispatcher.instance.onError is the last resort for catching unhandled async errors.',
-    'hard', 'Error Handling', '{flutter,errors,crashlytics}'
   )
 on conflict (id) do nothing;
 
