@@ -1,0 +1,119 @@
+/* applicants.module.css */
+
+/* Container with subtle gradient and glass effect */
+.container {
+  padding: 2rem;
+  background: linear-gradient(135deg, rgba(34, 34, 60, 0.85), rgba(63, 94, 251, 0.75));
+  backdrop-filter: blur(12px);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  color: #f0f0f0;
+  max-width: 1200px;
+  margin: 2rem auto;
+  animation: fadeIn 0.6s ease-out;
+}
+
+.title {
+  font-family: 'Inter', sans-serif;
+  font-size: 2.2rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  color: #fff;
+}
+
+.loading,
+.error {
+  font-family: 'Inter', sans-serif;
+  font-size: 1.2rem;
+  text-align: center;
+  margin-top: 3rem;
+  color: #ffeb3b;
+}
+
+/* Table styling */
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px;
+  font-family: 'Inter', sans-serif;
+}
+
+.table th {
+  background: rgba(255, 255, 255, 0.12);
+  color: #e0e0e0;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.table td {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fafafa;
+  padding: 0.75rem 1rem;
+}
+
+.table tr:hover td {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.tableWrapper {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.button {
+  background: #4a5568; /* dark gray for better dark‑mode contrast */
+  border: none;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  background: #5a6678; /* slightly lighter on hover */
+}
+
+.button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+/* Message template selector */
+.templates {
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.label {
+  font-family: 'Inter', sans-serif;
+  color: #e0e0e0;
+}
+
+.select {
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  appearance: none;
+  cursor: pointer;
+}
+
+.select:focus {
+  outline: none;
+  border-color: #3f5efb;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

@@ -5,23 +5,30 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const token = request.headers.get("authorization")?.replace("Bearer ", "");
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  
+  let user = null;
+  if (token) {
+    const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (!authError && authUser) {
+      user = authUser;
+    }
+  }
 
-  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-  if (authError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from("internship_applications")
     .select("*")
-    .eq("user_id", user.id)
     .order("created_at", { ascending: false });
+  if (user) {
+    query = query.eq("user_id", user.id);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
-  const msg = error.message.toLowerCase();
-  const statusCode = msg.includes('unauthorized') || msg.includes('forbidden') ? 401 : 500;
-  return NextResponse.json({ error: error.message }, { status: statusCode });
-}
+    const msg = error.message.toLowerCase();
+    const statusCode = msg.includes('unauthorized') || msg.includes('forbidden') ? 401 : 500;
+    return NextResponse.json({ error: error.message }, { status: statusCode });
+  }
   return NextResponse.json({ applications: data || [] });
 }
 
