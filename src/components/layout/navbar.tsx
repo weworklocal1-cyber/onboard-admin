@@ -14,6 +14,7 @@ const navigation = [
   { name: "Careers", href: "/careers" },
   { name: "About Us", href: "/about-us" },
   { name: "Contact", href: "/contact-us" },
+  { name: "Support", href: "/support" },
 ];
 
 export default function Navbar() {
