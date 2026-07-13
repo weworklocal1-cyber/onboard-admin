@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import ApplicantTable from '../applicants/ApplicantTable';
 import styles from '../applicants/applicants.module.css';
 
@@ -22,35 +23,39 @@ export default function InternshipApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
+  const router = useRouter();
 
-  // Retrieve auth token from session storage (client‑side only)
-  const token = typeof window !== 'undefined' ? sessionStorage.getItem('adminAuthToken') : null;
+  const loadApplications = async () => {
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('adminAuthToken') : null;
+    if (!token) {
+      router.replace('/admin');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch('/api/academy/applications', { headers });
+      if (res.status === 401) {
+        router.replace('/admin');
+        return;
+      }
+      if (!res.ok) throw new Error('Failed to fetch applications');
+      const json = await res.json();
+      setApplications(json.applications ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchApplications = async () => {
-      setLoading(true);
-      try {
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        const res = await fetch('/api/academy/applications', { headers });
-        if (res.status === 401) {
-          setError('Unauthorized – please log in again.');
-          return;
-        }
-        if (!res.ok) throw new Error('Failed to fetch applications');
-        const json = await res.json();
-        setApplications(json.data ?? []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchApplications();
+    loadApplications();
   }, []);
 
   const handleSend = (app: Application) => {
-    // TODO: integrate email/WhatsApp template handling
     alert(`Send email to ${app.email}`);
   };
 
@@ -60,7 +65,7 @@ export default function InternshipApplicationsPage() {
   return (
     <div className="p-8">
       <h1 className="text-2xl font-bold mb-4">Internship Applications</h1>
-      <ApplicantTable applications={applications} onSend={handleSend} />
+      <ApplicantTable applications={applications} onSend={handleSend} onStatusChange={loadApplications} />
     </div>
   );
 }

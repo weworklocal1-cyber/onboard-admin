@@ -7,10 +7,17 @@ export async function GET(request: Request) {
   const token = request.headers.get("authorization")?.replace("Bearer ", "");
   
   let user = null;
+  let isAdmin = false;
   if (token) {
     const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
     if (!authError && authUser) {
       user = authUser;
+      const { data: adminData } = await supabaseAdmin
+        .from("admin_users")
+        .select("role")
+        .eq("id", authUser.id)
+        .single();
+      if (adminData) isAdmin = true;
     }
   }
 
@@ -18,7 +25,7 @@ export async function GET(request: Request) {
     .from("internship_applications")
     .select("*")
     .order("created_at", { ascending: false });
-  if (user) {
+  if (user && !isAdmin) {
     query = query.eq("user_id", user.id);
   }
 

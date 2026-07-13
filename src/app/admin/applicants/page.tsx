@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import ApplicantTable from './ApplicantTable';
 import styles from './applicants.module.css';
 
@@ -8,16 +9,35 @@ type Application = {
   id: string;
   full_name: string;
   email: string;
+  phone?: string;
+  certificate_id?: string;
+  motivation?: string;
+  resume_url?: string;
+  status?: string;
   created_at: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
 };
 
 export default function ApplicantsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
-  useEffect(() => {
-    fetch('/api/academy/applications')
+  const loadApplications = () => {
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('adminAuthToken') : null;
+    if (!token) {
+      router.replace('/admin');
+      return;
+    }
+
+    fetch('/api/academy/applications', {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
       .then((res) => {
         if (!res.ok) throw new Error('Failed to fetch applicants');
         return res.json();
@@ -30,6 +50,10 @@ export default function ApplicantsPage() {
         setError(e.message);
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    loadApplications();
   }, []);
 
   const handleSendEmail = (app: Application) => {
@@ -43,7 +67,7 @@ export default function ApplicantsPage() {
   return (
     <div className={styles.container}>
       <h1 className={styles.title}>Internship Applicants</h1>
-      <ApplicantTable applications={applications} onSend={handleSendEmail} />
+      <ApplicantTable applications={applications} onSend={handleSendEmail} onStatusChange={loadApplications} />
     </div>
   );
 }
