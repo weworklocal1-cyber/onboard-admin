@@ -186,7 +186,7 @@ export async function POST(request: Request) {
       .eq("is_active", true);
 
     if (roleError || !activeRoles?.length) {
-      return NextResponse.json({ error: "Failed to load allowed roles" }, { status: 500 });
+      return NextResponse.json({ error: "Failed to load allowed roles", details: roleError?.message }, { status: 500 });
     }
 
     const validRoles = new Set(activeRoles.map((item) => item.name));
@@ -194,23 +194,152 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });
     }
 
-    const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-    });
+    let userId: string | undefined;
+    let createdNewUser = false;
 
-    if (createError || !created.user) {
-      return NextResponse.json(
-        { error: createError?.message || "Failed to create user" },
-        { status: 500 }
-      );
+    let matchedUser: { id: string } | undefined;
+    try {
+      const { data: profileByEmail } = await supabaseAdmin
+        .from("profiles")
+        .select("id, role")
+        .eq("email", email.trim())
+        .maybeSingle();
+
+      if (profileByEmail?.id) {
+        matchedUser = { id: profileByEmail.id };
+      }
+    } catch (lookupErr) {
+      console.error("[create-employee] profile email lookup failed:", lookupErr);
+    }
+
+    if (matchedUser?.id) {
+      const { data: existingProfile, error: existingProfileError } = await supabaseAdmin
+        .from("profiles")
+        .select("role")
+        .eq("id", matchedUser.id)
+        .maybeSingle();
+
+      if (existingProfileError) {
+        return NextResponse.json({ error: "Failed to check existing profile", details: existingProfileError.message }, { status: 500 });
+      }
+
+      const existingRole = existingProfile?.role;
+
+      if (existingRole && existingRole !== "intern") {
+        return NextResponse.json(
+          { error: "This email is already registered to an active account and cannot be reused." },
+          { status: 409 }
+        );
+      }
+
+      userId = matchedUser.id;
+      createdNewUser = false;
+      try {
+        await supabaseAdmin.auth.admin.updateUserById(matchedUser.id, { password });
+      } catch (updateErr) {
+        console.error("[create-employee] password reset failed:", updateErr);
+      }
+    } else {
+      let created: { user: { id: string } } | undefined;
+      let createError: { message: string } | undefined;
+
+      try {
+        const result = await supabaseAdmin.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+        });
+        if (result.error || !result.data?.user) {
+          createError = result.error ? { message: result.error.message } : { message: "Failed to create user" };
+        } else {
+          created = result.data as { user: { id: string } };
+        }
+      } catch (err) {
+        createError = { message: err instanceof Error ? err.message : String(err) };
+      }
+
+      if (createError) {
+        const msg = (createError.message || "").toLowerCase();
+        const isDuplicate = msg.includes("already been registered") || msg.includes("already registered") || msg.includes("duplicate") || msg.includes("exists");
+
+        if (isDuplicate) {
+          let authUser: { id: string } | undefined;
+          try {
+            const existing = await supabaseAdmin.from("profiles").select("id, role").eq("email", email.trim()).maybeSingle();
+            if (existing?.data?.id) authUser = { id: existing.data.id };
+          } catch (lookupErr) {
+            console.error("[create-employee] post-duplicate profile lookup failed:", lookupErr);
+          }
+
+          if (!authUser) {
+            try {
+              const pageSize = 200;
+            const listed = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: pageSize });
+            let found = listed?.data?.users?.find((u) => (u.email ?? "").toLowerCase() === email.trim().toLowerCase());
+              if (!found && listed?.data?.users?.length === pageSize) {
+                const page2 = await supabaseAdmin.auth.admin.listUsers({ page: 2, perPage: pageSize });
+                found = page2?.data?.users?.find((u) => (u.email ?? "").toLowerCase() === email.trim().toLowerCase());
+              }
+              if (found?.id) authUser = { id: found.id };
+            } catch (lookupErr) {
+              console.error("[create-employee] post-duplicate auth lookup failed:", lookupErr);
+            }
+          }
+
+          if (authUser?.id) {
+            const { data: existingProfile, error: existingProfileError } = await supabaseAdmin
+              .from("profiles")
+              .select("role")
+              .eq("id", authUser.id)
+              .maybeSingle();
+
+            if (existingProfileError) {
+              return NextResponse.json({ error: "Failed to check existing profile", details: existingProfileError.message }, { status: 500 });
+            }
+
+            const existingRole = existingProfile?.role;
+
+            if (existingRole && existingRole !== "intern") {
+              return NextResponse.json(
+                { error: "This email is already registered to an active account and cannot be reused." },
+                { status: 409 }
+              );
+            }
+
+            userId = authUser.id;
+            createdNewUser = false;
+            try {
+              await supabaseAdmin.auth.admin.updateUserById(authUser.id, { password });
+            } catch (updateErr) {
+              console.error("[create-employee] password reset after duplicate failed:", updateErr);
+            }
+          } else {
+            return NextResponse.json(
+              { error: createError.message || "Failed to create user" },
+              { status: 500 }
+            );
+          }
+        } else {
+          return NextResponse.json(
+            { error: createError.message || "Failed to create user" },
+            { status: 500 }
+          );
+        }
+      } else if (created?.user?.id) {
+        userId = created.user.id;
+        createdNewUser = true;
+      } else {
+        return NextResponse.json(
+          { error: "Failed to create user" },
+          { status: 500 }
+        );
+      }
     }
 
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
-      .insert({
-        id: created.user.id,
+      .upsert({
+        id: userId,
         full_name: full_name.trim(),
         email: email.trim(),
         phone: phone?.trim() || null,
@@ -224,7 +353,13 @@ export async function POST(request: Request) {
       .single();
 
     if (profileError) {
-      await supabaseAdmin.auth.admin.deleteUser(created.user.id);
+      if (createdNewUser) {
+        try {
+          await supabaseAdmin.auth.admin.deleteUser(userId);
+        } catch (cleanupErr) {
+          console.error("[create-employee] cleanup delete failed:", cleanupErr);
+        }
+      }
       return NextResponse.json({ error: profileError.message }, { status: 500 });
     }
 
@@ -238,7 +373,6 @@ export async function POST(request: Request) {
         console.error("Failed to parse request URL for welcome email origin:", err);
       }
 
-      // If parsing fails, or doesn't match local/preview/production domains, fall back to the env var or default
       if (!appOrigin || (
         !appOrigin.includes("localhost") && 
         !appOrigin.includes("vercel.app") && 
@@ -268,13 +402,14 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       employee: {
-        id: created.user.id,
+        id: userId || profile.id,
         employee_id: profile.employee_id,
         email,
         full_name,
       },
     });
   } catch (err: unknown) {
+    console.error("[create-employee] unexpected error:", err);
     const message = err instanceof Error ? err.message : "Bad request";
     return NextResponse.json({ error: message }, { status: 400 });
   }

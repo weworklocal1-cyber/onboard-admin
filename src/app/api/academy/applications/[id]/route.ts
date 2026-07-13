@@ -97,14 +97,59 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         }
       }
 
-      if (cohortId && application.user_id) {
+      let tempPassword = "";
+      let createdUserId = application.user_id;
+
+      if (application.email) {
+        tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+
+        try {
+          const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
+            email: application.email,
+            password: tempPassword,
+            email_confirm: true,
+          });
+
+          if (createError || !created?.user) {
+            console.error("[applications-patch] auth create user error:", createError);
+            const userId = application.user_id || "";
+            if (userId) {
+              const { data: updated } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+                password: tempPassword,
+              });
+              createdUserId = updated.user?.id || userId;
+            }
+          } else {
+            createdUserId = created.user.id;
+          }
+        } catch (err) {
+          console.error("[applications-patch] auth user creation unexpected error:", err);
+        }
+      }
+
+      if (createdUserId) {
+        await supabaseAdmin.from("profiles").upsert(
+          {
+            id: createdUserId,
+            full_name: application.full_name,
+            email: application.email,
+            phone: application.phone,
+            role: "intern",
+            employment_type: "internship",
+            status: "active",
+          },
+          { onConflict: "id" }
+        );
+      }
+
+      if (cohortId && createdUserId) {
         await supabaseAdmin.from("intern_cohort_members").upsert(
-          { cohort_id: cohortId, application_id: id, user_id: application.user_id },
+          { cohort_id: cohortId, application_id: id, user_id: createdUserId },
           { onConflict: "application_id,cohort_id" }
         );
       }
 
-      let message = `Hi ${application.full_name},\n\nCongratulations! Your internship application has been confirmed. We are excited to have you on board. Please check your email for next steps and onboarding details.\n\nBest regards,\nLocawala Team`;
+      let message = `Hi ${application.full_name},\n\nCongratulations! Your internship application has been confirmed. We are excited to have you on board.\n\nYour login credentials:\nEmail: ${application.email}\nPassword: ${tempPassword}\n\nPlease login and change your password after first login.\n\nBest regards,\nLocawala Team`;
 
       if (whatsappGroupLink) {
         message += `\n\nJoin our WhatsApp group: ${whatsappGroupLink}`;

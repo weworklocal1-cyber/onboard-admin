@@ -58,16 +58,6 @@ export async function POST(request: Request) {
       full_name: string; email: string; phone?: string; certificate_id?: string; motivation?: string; resume_url?: string;
     };
 
-    // Ensure user profile exists (upsert) with required fields
-    const { error: upsertError } = await supabaseAdmin
-      .from('profiles')
-      .upsert({ id: user.id, email: user.email ?? email, full_name });
-
-    if (upsertError) {
-      console.error('Failed to upsert profile:', upsertError);
-      return NextResponse.json({ error: 'Failed to ensure user profile' }, { status: 500 });
-    };
-
     if (!full_name?.trim() || !email?.trim()) {
       return NextResponse.json({ error: "Full name and email are required" }, { status: 400 });
     }

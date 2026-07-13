@@ -58,6 +58,8 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Profile[]>([]);
   const [search, setSearch] = useState("");
   const [fetching, setFetching] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<AddEmployeeForm>(DEFAULT_FORM);
   const [submitting, setSubmitting] = useState(false);
@@ -88,13 +90,60 @@ export default function EmployeesPage() {
 
   const fetchEmployees = async () => {
     setFetching(true);
+    setSelectedIds(new Set());
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
+      .neq("role", "intern")
       .order("full_name");
     if (error) toast.error("Failed to load employees: " + error.message);
     else setEmployees(data || []);
     setFetching(false);
+  };
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((e) => e.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedIds.size} employee(s)? This action cannot be undone.`)) return;
+
+    setDeleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/workforce/employees/bulk-delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) throw new Error(result.error || result.message || "Failed to delete employees");
+
+      toast.success(result.message || `Deleted ${selectedIds.size} employees`);
+      setSelectedIds(new Set());
+      fetchEmployees();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete employees");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   useEffect(() => {
@@ -202,10 +251,45 @@ export default function EmployeesPage() {
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((emp) => (
-            <EmployeeCard key={emp.id} employee={emp} />
-          ))}
+        <div className="space-y-4">
+          {filtered.length > 0 && (
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                  onChange={toggleSelectAll}
+                  className="h-4 w-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary"
+                />
+                Select All
+              </label>
+              {selectedIds.size > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? "Deleting…" : `Delete Selected (${selectedIds.size})`}
+                </Button>
+              )}
+            </div>
+          )}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filtered.map((emp) => (
+              <div key={emp.id} className="relative">
+                <label className="absolute top-2 left-2 z-10 flex items-center gap-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md shadow-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(emp.id)}
+                    onChange={() => toggleSelection(emp.id)}
+                    className="h-4 w-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary"
+                  />
+                </label>
+                <EmployeeCard employee={emp} />
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
