@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Award, Download, Shield } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
+import "./print.css";
 
 interface CertificateInfo {
   certificate_id: string;
@@ -71,6 +72,10 @@ export default function InternshipLetterPage() {
     fetchData();
   }, [supabase]);
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   if (loading) {
     return <div className="h-96 rounded-xl bg-gray-200 animate-pulse" />;
   }
@@ -120,46 +125,92 @@ export default function InternshipLetterPage() {
             </div>
 
             <div className="border border-gray-200 rounded-xl overflow-hidden">
-              <div className="relative bg-white">
-                <img
-                  src="/images/internship-letter.png"
-                  alt="Internship Appointment Letter"
-                  className="w-full h-auto"
-                />
-
-                <div className="absolute inset-0 pointer-events-none">
-                  <div
-                    className="absolute text-black font-medium"
-                    style={{
-                      top: "6.5%",
-                      left: "14%",
-                      fontSize: "clamp(12px, 1.2vw, 16px)",
-                    }}
-                  >
-                    {letterDate}
+              <div className="bg-white p-8 md:p-12" id="internship-letter-content">
+                <div className="max-w-3xl mx-auto">
+                  <div className="flex items-start gap-4 mb-8">
+                    <div className="shrink-0">
+                      <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-600 to-orange-500 flex items-center justify-center text-white font-bold text-xl">
+                        WL
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <h1 className="text-3xl font-bold text-blue-900">WeWorkLocal</h1>
+                      <p className="text-sm text-gray-500 mt-1">India&apos;s Smart Local Services &amp; Marketplace Platform</p>
+                    </div>
                   </div>
 
-                  <div
-                    className="absolute text-black font-medium"
-                    style={{
-                      top: "22%",
-                      left: "8%",
-                      fontSize: "clamp(12px, 1.2vw, 16px)",
-                    }}
-                  >
-                    {userName},
+                  <div className="mb-6">
+                    <p className="text-sm font-medium text-gray-700">Date: <span className="font-semibold">{letterDate}</span></p>
                   </div>
 
-                  <div
-                    className="absolute text-black font-medium"
-                    style={{
-                      top: "38.5%",
-                      left: "10%",
-                      right: "10%",
-                      fontSize: "clamp(12px, 1.2vw, 16px)",
-                    }}
-                  >
-                    {internStartDate}
+                  <div className="text-center mb-8">
+                    <h2 className="text-2xl font-bold text-blue-900 mb-2">INTERNSHIP APPOINTMENT LETTER</h2>
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="h-0.5 w-12 bg-blue-500" />
+                      <div className="w-2 h-2 rounded-full bg-blue-500" />
+                      <div className="h-0.5 w-12 bg-blue-500" />
+                    </div>
+                  </div>
+
+                  <div className="mb-6">
+                    <p className="text-sm font-medium text-gray-700">To,</p>
+                    <p className="text-sm font-semibold text-gray-900 mt-1">{userName}</p>
+                  </div>
+
+                  <div className="mb-6">
+                    <p className="text-sm font-medium text-gray-700">Subject: <span className="font-semibold">Appointment as Intern – Mobile Application Development</span></p>
+                  </div>
+
+                  <div className="space-y-4 text-sm text-gray-700 leading-relaxed">
+                    <p>Dear <span className="font-semibold">{userName}</span>,</p>
+
+                    <p>
+                      We are pleased to inform you that you have been selected as an <strong>Intern – Mobile Application Development</strong> at <strong>WeWorkLocal</strong>. We are confident that your skills and enthusiasm will be a valuable addition to our team.
+                    </p>
+
+                    <p>
+                      Your internship will commence from <span className="font-semibold">{internStartDate}</span> and will continue for a period of <strong>3 months</strong>, subject to performance and project requirements. During this period, you will be working closely with our development team and contributing to real-time projects that impact users.
+                    </p>
+
+                    <p>
+                      You will be expected to maintain confidentiality, professionalism, and dedication in all tasks assigned to you.
+                    </p>
+
+                    <p>
+                      Your performance during the internship will be evaluated, and based on your performance, a full-time opportunity at WeWorkLocal may be offered.
+                    </p>
+
+                    <p>
+                      We believe this internship will be a valuable learning experience for you, and we look forward to your growth and meaningful contributions to <strong>WeWorkLocal</strong>.
+                    </p>
+
+                    <p>Welcome aboard! We are excited to have you with us.</p>
+
+                    <p>Sincerely,</p>
+                    <p className="font-semibold">Team WeWorkLocal</p>
+                    <p className="text-xs text-gray-500">WeWorkLocal Private Limited</p>
+                  </div>
+
+                  <div className="mt-8 pt-6 border-t border-gray-200">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-gray-600">
+                      <div>
+                        <p className="font-semibold text-gray-900 mb-1">Address</p>
+                        <p>Dullapally</p>
+                        <p>Dundigal-Gandimaisamma</p>
+                        <p>Medchal-Malkajgiri</p>
+                        <p>Telangana Pin Code: 500100</p>
+                        <p>www.weworklocal.com</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900 mb-1">Email</p>
+                        <p>weworklocal11@gmail.com</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900 mb-1">Contact</p>
+                        <p>+91 9182793401</p>
+                        <p>@weworklocalsupport</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -169,7 +220,10 @@ export default function InternshipLetterPage() {
               <Link href="/academy/dashboard">
                 <button className="border border-gray-200 px-4 py-2 rounded-lg">Back to Dashboard</button>
               </Link>
-              <button className="bg-academy-primary text-white px-4 py-2 rounded-lg flex items-center gap-2">
+              <button
+                onClick={handlePrint}
+                className="bg-academy-primary text-white px-4 py-2 rounded-lg flex items-center gap-2"
+              >
                 <Download className="h-4 w-4" />
                 Download Letter
               </button>
