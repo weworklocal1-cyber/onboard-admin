@@ -1,6 +1,8 @@
 @media print {
-  body * {
+  html, body {
     visibility: hidden;
+    height: 0;
+    overflow: hidden;
   }
 
   #internship-letter-content,
@@ -9,19 +11,22 @@
   }
 
   #internship-letter-content {
-    position: absolute;
-    left: 0;
-    top: 0;
+    position: fixed;
+    inset: 0;
     width: 100%;
     max-width: 100%;
+    height: auto;
+    overflow: visible;
     padding: 0 !important;
     margin: 0 !important;
     border: none !important;
     box-shadow: none !important;
+    background: #fff !important;
   }
 
   #internship-letter-content > div {
     max-width: 100% !important;
     padding: 2rem !important;
+    box-shadow: none !important;
   }
 }
