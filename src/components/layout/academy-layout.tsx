@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "sonner";
 import { cn } from "@/lib/utils";
-import { Menu, X, LogOut, BookOpen, GraduationCap, Award, Trophy, Users, LifeBuoy } from "lucide-react";
+import { Menu, X, LogOut, BookOpen, GraduationCap, Award, Trophy, Users, LifeBuoy, FileText } from "lucide-react";
 import { LayoutGrid } from "lucide-react";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -21,6 +21,7 @@ const ALL_NAV: NavItem[] = [
   { name: "Academy", href: "/academy/courses", icon: <BookOpen className="h-5 w-5" /> },
   { name: "My Courses", href: "/academy/my-courses", icon: <GraduationCap className="h-5 w-5" /> },
   { name: "Certificates", href: "/academy/certificates", icon: <Award className="h-5 w-5" /> },
+  { name: "Internship Letter", href: "/academy/internship-letter", icon: <FileText className="h-5 w-5" /> },
   { name: "Leaderboard", href: "/academy/leaderboard", icon: <Trophy className="h-5 w-5" /> },
   { name: "Profile", href: "/academy/profile", icon: <Users className="h-5 w-5" /> },
   { name: "Support", href: "/academy/support", icon: <LifeBuoy className="h-5 w-5" /> },
@@ -40,6 +41,7 @@ export default function AcademyLayout({
   const [fullName, setFullName] = useState<string>("");
   const [signingOut, setSigningOut] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [hasValidCert, setHasValidCert] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -54,6 +56,13 @@ export default function AcademyLayout({
 
       const fullName = (user.user_metadata?.full_name as string) || (user as any).full_name || "";
       if (fullName) setFullName(fullName);
+
+      const { data: certData } = await supabase
+        .from("academy_certificates")
+        .select("score")
+        .eq("user_id", user.id);
+
+      setHasValidCert((certData || []).some((c: any) => (c.score || 0) >= 68));
 
       if (PUBLIC_PATHS.includes(pathname)) {
         router.replace("/academy/dashboard");
@@ -124,6 +133,9 @@ export default function AcademyLayout({
 
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
           {ALL_NAV.map((item) => {
+            if (item.href === "/academy/internship-letter" && !hasValidCert) {
+              return null;
+            }
             const isActive =
               pathname === item.href ||
               (item.href !== "/academy/dashboard" && pathname.startsWith(item.href));
