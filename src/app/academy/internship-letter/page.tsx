@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Award, Download, Shield } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
-import "./print.css";
 
 const COMPANY = {
   name: "WeWorkLocal",
@@ -85,8 +84,26 @@ export default function InternshipLetterPage() {
     fetchData();
   }, [supabase]);
 
-  const handlePrint = () => {
-    window.print();
+  const handleDownload = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return;
+
+    const res = await fetch("/api/academy/internship-letter/pdf", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) return;
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `internship-letter.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   };
 
   if (loading) {
@@ -232,7 +249,7 @@ export default function InternshipLetterPage() {
                 <button className="border border-gray-200 px-4 py-2 rounded-lg">Back to Dashboard</button>
               </Link>
               <button
-                onClick={handlePrint}
+                onClick={handleDownload}
                 className="bg-academy-primary text-white px-4 py-2 rounded-lg flex items-center gap-2"
               >
                 <Download className="h-4 w-4" />
