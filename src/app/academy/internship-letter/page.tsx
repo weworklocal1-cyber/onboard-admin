@@ -18,6 +18,9 @@ export default function InternshipLetterPage() {
   const [loading, setLoading] = useState(true);
   const [certificates, setCertificates] = useState<CertificateInfo[]>([]);
   const [hasValidCert, setHasValidCert] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [letterDate, setLetterDate] = useState("");
+  const [internStartDate, setInternStartDate] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -26,6 +29,16 @@ export default function InternshipLetterPage() {
         setLoading(false);
         return;
       }
+
+      const fullName = (user.user_metadata?.full_name as string) || (user as any).full_name || "";
+      setUserName(fullName);
+
+      const today = new Date();
+      setLetterDate(today.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }));
+
+      const nextMonth = new Date(today);
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+      setInternStartDate(nextMonth.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }));
 
       const { data: certData } = await supabase
         .from("academy_certificates")
@@ -106,37 +119,47 @@ export default function InternshipLetterPage() {
               <p className="text-gray-600">You have successfully completed the certification and are now eligible for the Mobile Application Development internship program.</p>
             </div>
 
-            <div className="bg-academy-light rounded-xl p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Program</p>
-                  <p className="font-semibold text-gray-900">Mobile Application Development</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Organization</p>
-                  <p className="font-semibold text-gray-900">WeWorkLocal / LocalWala</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Duration</p>
-                  <p className="font-semibold text-gray-900">3 Months</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Mode</p>
-                  <p className="font-semibold text-gray-900">Remote / Hybrid</p>
-                </div>
-              </div>
-            </div>
-
             <div className="border border-gray-200 rounded-xl overflow-hidden">
-              <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                <h4 className="font-semibold text-gray-900">Internship Letter</h4>
-              </div>
-              <div className="p-6">
-                <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
-                  <div className="text-center space-y-3">
-                    <Award className="h-12 w-12 text-gray-300 mx-auto" />
-                    <p className="text-sm text-gray-500">Internship Letter Placeholder</p>
-                    <p className="text-xs text-gray-400">Add your internship letter image to public/images/internship-letter.jpg</p>
+              <div className="relative bg-white">
+                <img
+                  src="/images/internship-letter.png"
+                  alt="Internship Appointment Letter"
+                  className="w-full h-auto"
+                />
+
+                <div className="absolute inset-0 pointer-events-none">
+                  <div
+                    className="absolute text-black font-medium"
+                    style={{
+                      top: "6.5%",
+                      left: "14%",
+                      fontSize: "clamp(12px, 1.2vw, 16px)",
+                    }}
+                  >
+                    {letterDate}
+                  </div>
+
+                  <div
+                    className="absolute text-black font-medium"
+                    style={{
+                      top: "22%",
+                      left: "8%",
+                      fontSize: "clamp(12px, 1.2vw, 16px)",
+                    }}
+                  >
+                    {userName},
+                  </div>
+
+                  <div
+                    className="absolute text-black font-medium"
+                    style={{
+                      top: "38.5%",
+                      left: "10%",
+                      right: "10%",
+                      fontSize: "clamp(12px, 1.2vw, 16px)",
+                    }}
+                  >
+                    {internStartDate}
                   </div>
                 </div>
               </div>
