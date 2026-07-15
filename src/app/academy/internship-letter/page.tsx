@@ -7,6 +7,20 @@ import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import "./print.css";
 
+const COMPANY = {
+  name: "WeWorkLocal",
+  tagline: "India's Smart Local Services & Marketplace Platform",
+  email: "weworklocal1@gmail.com",
+  phone: "+91 9182793401",
+  social: "@weworklocalsupport",
+  address: [
+    "Dullapally",
+    "Dundigal-Gandimaisamma",
+    "Medchal-Malkajgiri",
+    "Telangana Pin Code: 500100",
+  ],
+};
+
 interface CertificateInfo {
   certificate_id: string;
   score: number;
@@ -134,8 +148,8 @@ export default function InternshipLetterPage() {
                       </div>
                     </div>
                     <div className="flex-1">
-                      <h1 className="text-3xl font-bold text-blue-900">WeWorkLocal</h1>
-                      <p className="text-sm text-gray-500 mt-1">India&apos;s Smart Local Services &amp; Marketplace Platform</p>
+                      <h1 className="text-3xl font-bold text-blue-900">{COMPANY.name}</h1>
+                      <p className="text-sm text-gray-500 mt-1">{COMPANY.tagline}</p>
                     </div>
                   </div>
 
@@ -165,7 +179,7 @@ export default function InternshipLetterPage() {
                     <p>Dear <span className="font-semibold">{userName}</span>,</p>
 
                     <p>
-                      We are pleased to inform you that you have been selected as an <strong>Intern – Mobile Application Development</strong> at <strong>WeWorkLocal</strong>. We are confident that your skills and enthusiasm will be a valuable addition to our team.
+                      We are pleased to inform you that you have been selected as an <strong>Intern – Mobile Application Development</strong> at <strong>{COMPANY.name}</strong>. This selection is based on your successful completion of the certification program through our onboarding portal at <strong>onboard.localwala.tech</strong>. We are confident that your skills and enthusiasm will be a valuable addition to our team.
                     </p>
 
                     <p>
@@ -177,38 +191,37 @@ export default function InternshipLetterPage() {
                     </p>
 
                     <p>
-                      Your performance during the internship will be evaluated, and based on your performance, a full-time opportunity at WeWorkLocal may be offered.
+                      Your performance during the internship will be evaluated, and based on your performance, a full-time opportunity at {COMPANY.name} may be offered.
                     </p>
 
                     <p>
-                      We believe this internship will be a valuable learning experience for you, and we look forward to your growth and meaningful contributions to <strong>WeWorkLocal</strong>.
+                      We believe this internship will be a valuable learning experience for you, and we look forward to your growth and meaningful contributions to <strong>{COMPANY.name}</strong>.
                     </p>
 
                     <p>Welcome aboard! We are excited to have you with us.</p>
 
                     <p>Sincerely,</p>
-                    <p className="font-semibold">Team WeWorkLocal</p>
-                    <p className="text-xs text-gray-500">WeWorkLocal Private Limited</p>
+                    <p className="font-semibold">Team {COMPANY.name}</p>
+                    <p className="text-xs text-gray-500">{COMPANY.name} Private Limited</p>
                   </div>
 
                   <div className="mt-8 pt-6 border-t border-gray-200">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-gray-600">
                       <div>
                         <p className="font-semibold text-gray-900 mb-1">Address</p>
-                        <p>Dullapally</p>
-                        <p>Dundigal-Gandimaisamma</p>
-                        <p>Medchal-Malkajgiri</p>
-                        <p>Telangana Pin Code: 500100</p>
-                        <p>www.weworklocal.com</p>
+                        {COMPANY.address.map((line) => (
+                          <p key={line}>{line}</p>
+                        ))}
+                        <p className="mt-1">Onboarding Portal: onboard.localwala.tech</p>
                       </div>
                       <div>
                         <p className="font-semibold text-gray-900 mb-1">Email</p>
-                        <p>weworklocal11@gmail.com</p>
+                        <p>{COMPANY.email}</p>
                       </div>
                       <div>
                         <p className="font-semibold text-gray-900 mb-1">Contact</p>
-                        <p>+91 9182793401</p>
-                        <p>@weworklocalsupport</p>
+                        <p>{COMPANY.phone}</p>
+                        <p>{COMPANY.social}</p>
                       </div>
                     </div>
                   </div>
