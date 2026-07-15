@@ -30,6 +30,7 @@ export default function InternshipApplicationPage() {
     motivation: "",
   });
   const [success, setSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -88,18 +89,34 @@ export default function InternshipApplicationPage() {
     if (!form.full_name.trim() || !form.email.trim() || !form.certificate_id) return;
 
     setSubmitting(true);
-    const token = (await supabase.auth.getSession()).data.session?.access_token;
-    if (!token) return;
+    setSubmitError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        setSubmitError("You must be signed in to submit an application.");
+        return;
+      }
 
-    await fetch("/api/academy/applications", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+      const res = await fetch("/api/academy/applications", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
 
-    setSubmitting(false);
-    setSuccess(true);
-    setHasApplied(true);
+      const json = await res.json().catch(() => ({} as Record<string, unknown>));
+      if (!res.ok) {
+        setSubmitError((json.error as string) || "Failed to submit application. Please try again.");
+        return;
+      }
+
+      setSuccess(true);
+      setHasApplied(true);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to submit application. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) return <div className="h-96 rounded-xl bg-gray-200 animate-pulse" />;
@@ -209,6 +226,10 @@ export default function InternshipApplicationPage() {
           </div>
 
           <Textarea label="Motivation Statement" required value={form.motivation} onChange={(e) => setForm({ ...form, motivation: e.target.value })} placeholder="Why do you want to join the Mobile Application Development internship?" />
+
+          {submitError && (
+            <p className="text-sm text-red-600 mb-2">{submitError}</p>
+          )}
 
           <div className="flex gap-2 justify-end pt-2">
             <a href="/academy/dashboard"><button className="border border-gray-200 px-4 py-2 rounded-lg" type="button">Cancel</button></a>
