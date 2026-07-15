@@ -10,9 +10,8 @@ import "./print.css";
 const COMPANY = {
   name: "WeWorkLocal",
   tagline: "India's Smart Local Services & Marketplace Platform",
-  email: "weworklocal1@gmail.com",
+  email: "onboarding@localwala.tech",
   phone: "+91 9182793401",
-  social: "@weworklocalsupport",
   address: [
     "Dullapally",
     "Dundigal-Gandimaisamma",
@@ -202,7 +201,7 @@ export default function InternshipLetterPage() {
 
                     <p>Sincerely,</p>
                     <p className="font-semibold">Team {COMPANY.name}</p>
-                    <p className="text-xs text-gray-500">{COMPANY.name} Private Limited</p>
+                    <p className="text-xs text-gray-500">{COMPANY.name}</p>
                   </div>
 
                   <div className="mt-8 pt-6 border-t border-gray-200">
@@ -221,7 +220,6 @@ export default function InternshipLetterPage() {
                       <div>
                         <p className="font-semibold text-gray-900 mb-1">Contact</p>
                         <p>{COMPANY.phone}</p>
-                        <p>{COMPANY.social}</p>
                       </div>
                     </div>
                   </div>
