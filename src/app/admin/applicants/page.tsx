@@ -66,7 +66,14 @@ export default function ApplicantsPage() {
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>Internship Applicants</h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+        <h1 className={styles.title} style={{ marginBottom: 0 }}>Internship Applicants</h1>
+          <a href="/admin/applicants/interns-with-certificates">
+          <button className={styles.button} style={{ background: '#059669' }}>
+            View Interns With Certificates
+          </button>
+        </a>
+      </div>
       <ApplicantTable applications={applications} onSend={handleSendEmail} onStatusChange={loadApplications} />
     </div>
   );

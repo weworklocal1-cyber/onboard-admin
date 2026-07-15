@@ -122,9 +122,9 @@ export default function ResultsPage({ params }: { params: { slug: string } }) {
               <h3 className="font-semibold">Internship Eligible</h3>
               <p className="text-sm text-gray-600">You can now apply for LocalWala internships</p>
             </div>
-            <a href="/academy/internship-application" className="ml-auto">
+            <a href="/academy/internship-letter" className="ml-auto">
               <button className="bg-academy-primary text-white px-4 py-2 rounded-lg flex items-center">
-                Apply Now <ChevronRight className="h-4 w-4 ml-1" />
+                Internship Letter <ChevronRight className="h-4 w-4 ml-1" />
               </button>
             </a>
           </CardContent>

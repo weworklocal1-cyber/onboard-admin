@@ -194,10 +194,10 @@ export default function AcademyDashboard() {
                     Browse Certifications
                   </button>
                 </Link>
-                {certificates.length > 0 && (
-                  <Link href="/academy/internship-application">
+                {certificates.length > 0 && certificates.some(c => c.score >= 68) && (
+                  <Link href="/academy/internship-letter">
                     <button className="bg-white/20 text-white border border-white/30 hover:bg-white/30 px-4 py-2 rounded-lg font-semibold text-sm flex items-center">
-                      Apply for Internship <ChevronRight className="h-4 w-4 ml-1" />
+                      Internship Letter <ChevronRight className="h-4 w-4 ml-1" />
                     </button>
                   </Link>
                 )}

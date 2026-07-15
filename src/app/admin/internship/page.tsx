@@ -64,7 +64,14 @@ export default function InternshipApplicationsPage() {
 
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-bold mb-4">Internship Applications</h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+        <h1 className="text-2xl font-bold mb-0">Internship Applications</h1>
+        <a href="/admin/applicants/interns-with-certificates">
+          <button style={{ background: '#059669', color: '#fff', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer' }}>
+            View Interns With Certificates
+          </button>
+        </a>
+      </div>
       <ApplicantTable applications={applications} onSend={handleSend} onStatusChange={loadApplications} />
     </div>
   );

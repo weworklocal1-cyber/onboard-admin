@@ -235,7 +235,7 @@ export default function AdminPage() {
   const [addingUser, setAddingUser] = useState(false);
   const [teamError, setTeamError] = useState("");
   const [whatsappDropdown, setWhatsappDropdown] = useState<string | null>(null);
-  const [academyTab, setAcademyTab] = useState<"courses" | "modules" | "lessons" | "quizzes" | "questions">("courses");
+  const [academyTab, setAcademyTab] = useState<"courses" | "modules" | "lessons" | "quizzes" | "questions" | "enrollments" | "interns">("courses");
 
   const isViewer = user?.role === "viewer";
   const isSuperAdmin = user?.role === "super_admin";
@@ -1323,25 +1323,51 @@ export default function AdminPage() {
             </div>
           ) : activeTab === "academy" ? (
             <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b border-gray-200">
-                {(["courses", "modules", "lessons", "quizzes", "questions"] as const).map((tab) => (
+              <div className="flex items-center gap-2 border-b border-gray-200 flex-wrap">
+                {(["courses", "modules", "lessons", "quizzes", "questions", "enrollments", "interns"] as const).map((tab) => (
                   <button key={tab} onClick={() => setAcademyTab(tab)} className={`px-4 py-2 text-sm font-semibold border-b-2 capitalize ${academyTab === tab ? "border-academy-primary text-academy-primary" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
                     {tab}
                   </button>
                 ))}
               </div>
               <div className="flex justify-end">
-                <a href={academyTab === "courses" ? "/admin/academy/courses" : academyTab === "modules" ? "/admin/academy/modules" : academyTab === "lessons" ? "/admin/academy/lessons" : academyTab === "quizzes" ? "/admin/academy/quizzes" : "/admin/academy/questions"}>
-                  <button className="bg-academy-primary text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-academy-secondary transition-colors">
-                    Open {academyTab.charAt(0).toUpperCase() + academyTab.slice(1)} Management →
-                  </button>
-                </a>
+                {academyTab === "enrollments" ? (
+                  <a href="/admin/applicants/enrollments">
+                    <button className="bg-academy-primary text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-academy-secondary transition-colors">
+                      Open Enrollments Management →
+                    </button>
+                  </a>
+                ) : academyTab === "interns" ? (
+                  <a href="/admin/applicants/interns-with-certificates">
+                    <button className="bg-academy-primary text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-academy-secondary transition-colors">
+                      Open Interns With Certificates →
+                    </button>
+                  </a>
+                ) : (
+                  <a href={academyTab === "courses" ? "/admin/academy/courses" : academyTab === "modules" ? "/admin/academy/modules" : academyTab === "lessons" ? "/admin/academy/lessons" : academyTab === "quizzes" ? "/admin/academy/quizzes" : "/admin/academy/questions"}>
+                    <button className="bg-academy-primary text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-academy-secondary transition-colors">
+                      Open {academyTab.charAt(0).toUpperCase() + academyTab.slice(1)} Management →
+                    </button>
+                  </a>
+                )}
               </div>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
-                <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-1">Manage {academyTab.charAt(0).toUpperCase() + academyTab.slice(1)}</h3>
-                <p className="text-sm text-gray-500 mb-4">Click the button above to open the {academyTab} management interface in a new tab.</p>
-              </div>
+              {academyTab === "enrollments" || academyTab === "interns" ? (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+                  <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                    {academyTab === "enrollments" ? "Course Enrollments" : "Interns With Certificates"}
+                  </h3>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Click the button above to open the {academyTab.replace("_", " ")} management interface in a new tab.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+                  <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Manage {academyTab.charAt(0).toUpperCase() + academyTab.slice(1)}</h3>
+                  <p className="text-sm text-gray-500 mb-4">Click the button above to open the {academyTab} management interface in a new tab.</p>
+                </div>
+              )}
             </div>
           ) : null}
       </main>
