@@ -204,7 +204,7 @@ export default function InternshipLetterPage() {
                     <p className="text-xs text-gray-500">{COMPANY.name}</p>
                   </div>
 
-                  <div className="mt-8 pt-6 border-t border-gray-200">
+                  <div className="mt-8 pt-6 border-t border-gray-200 letter-footer">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-gray-600">
                       <div>
                         <p className="font-semibold text-gray-900 mb-1">Address</p>

@@ -1,22 +1,25 @@
 @media print {
+  html > body > *:not(#internship-letter-content) {
+    display: none !important;
+  }
+
   html, body {
-    visibility: hidden;
-    height: 0;
-    overflow: hidden;
+    height: auto !important;
+    overflow: visible !important;
   }
 
   #internship-letter-content,
   #internship-letter-content * {
-    visibility: visible;
+    visibility: visible !important;
+    display: block !important;
   }
 
   #internship-letter-content {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    max-width: 100%;
-    height: auto;
-    overflow: visible;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
     padding: 0 !important;
     margin: 0 !important;
     border: none !important;
@@ -28,5 +31,15 @@
     max-width: 100% !important;
     padding: 2rem !important;
     box-shadow: none !important;
+  }
+
+  #internship-letter-content .break-inside-avoid {
+    break-inside: avoid;
+  }
+
+  #internship-letter-content footer,
+  #internship-letter-content .letter-footer {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }
