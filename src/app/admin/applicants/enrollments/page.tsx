@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, MessageSquare, CheckCircle2, BookOpen, Clock } from "lucide-react";
 import { templates, type TemplateKey } from "../../applicants/MessageTemplates";
+import AdminAuthGuard from "@/components/auth/admin-auth-guard";
 
 type Enrollment = {
   id: string;
@@ -50,6 +51,13 @@ export default function AcademyEnrollmentsPage() {
           },
         }),
       ]);
+
+      if (enrollmentsRes.status === 401) {
+        sessionStorage.removeItem("adminAuthToken");
+        sessionStorage.removeItem("adminUser");
+        router.replace("/admin");
+        return;
+      }
 
       if (!enrollmentsRes.ok) throw new Error("Failed to fetch enrollments");
       const enrollmentsJson = await enrollmentsRes.json();
@@ -119,6 +127,12 @@ export default function AcademyEnrollmentsPage() {
       });
 
       const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        sessionStorage.removeItem("adminAuthToken");
+        sessionStorage.removeItem("adminUser");
+        router.replace("/admin");
+        return;
+      }
       if (!res.ok) {
         alert(data.error || "Failed to confirm enrollment");
         return;
@@ -176,7 +190,8 @@ export default function AcademyEnrollmentsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <AdminAuthGuard>
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Course Enrollments</h1>
@@ -299,6 +314,7 @@ export default function AcademyEnrollmentsPage() {
           </div>
         </div>
       )}
+      </AdminAuthGuard>
     </div>
   );
 }
