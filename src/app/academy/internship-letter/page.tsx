@@ -46,12 +46,10 @@ export default function InternshipLetterPage() {
       const fullName = (user.user_metadata?.full_name as string) || (user as any).full_name || "";
       setUserName(fullName);
 
-      const today = new Date();
-      setLetterDate(today.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }));
+      const letterDate = "8 July 2026";
 
-      const nextMonth = new Date(today);
-      nextMonth.setMonth(nextMonth.getMonth() + 1);
-      setInternStartDate(nextMonth.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }));
+      const nextMonth = new Date(2026, 6, 8);
+      const internStartDate = nextMonth.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
       const { data: certData } = await supabase
         .from("academy_certificates")

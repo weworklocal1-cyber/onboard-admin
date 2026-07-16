@@ -31,11 +31,9 @@ export async function GET(request: Request) {
     }
 
     const fullName = (user.user_metadata?.full_name as string) || (user as any).full_name || "Intern";
-    const today = new Date();
-    const letterDate = today.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const letterDate = "8 July 2026";
 
-    const nextMonth = new Date(today);
-    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    const nextMonth = new Date(2026, 6, 8);
     const internStartDate = nextMonth.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
     const pdfBuffer = await renderToBuffer(
