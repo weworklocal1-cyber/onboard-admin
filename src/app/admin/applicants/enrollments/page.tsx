@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, MessageSquare, CheckCircle2, BookOpen, Clock } from "lucide-react";
 import { templates, type TemplateKey } from "../../applicants/MessageTemplates";
-import AdminAuthGuard from "@/components/auth/admin-auth-guard";
 
 type Enrollment = {
   id: string;
@@ -28,55 +27,92 @@ export default function AcademyEnrollmentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [whatsappGroupLink, setWhatsappGroupLink] = useState<string | null>(null);
+  const [authed, setAuthed] = useState(false);
   const router = useRouter();
 
-  const loadData = async () => {
-    const token = typeof window !== "undefined" ? sessionStorage.getItem("adminAuthToken") : null;
-    if (!token) {
-      router.replace("/admin");
-      return;
-    }
-
-    try {
-      const [enrollmentsRes, cohortRes] = await Promise.all([
-        fetch("/api/admin/academy/enrollments", {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }),
-        fetch("/api/academy/cohorts/confirmed", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }),
-      ]);
-
-      if (enrollmentsRes.status === 401) {
-        sessionStorage.removeItem("adminAuthToken");
-        sessionStorage.removeItem("adminUser");
+  useEffect(() => {
+    const verifyAuth = async () => {
+      const token = typeof window !== "undefined" ? sessionStorage.getItem("adminAuthToken") : null;
+      if (!token) {
         router.replace("/admin");
         return;
       }
 
-      if (!enrollmentsRes.ok) throw new Error("Failed to fetch enrollments");
-      const enrollmentsJson = await enrollmentsRes.json();
-      setEnrollments(enrollmentsJson.enrollments || []);
+      try {
+        const res = await fetch("/api/admin/me", {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-      if (cohortRes.ok) {
-        const cohortJson = await cohortRes.json();
-        setWhatsappGroupLink(cohortJson.whatsappGroupLink || null);
+        if (!res.ok) {
+          sessionStorage.removeItem("adminAuthToken");
+          sessionStorage.removeItem("adminUser");
+          router.replace("/admin");
+          return;
+        }
+
+        setAuthed(true);
+      } catch {
+        sessionStorage.removeItem("adminAuthToken");
+        sessionStorage.removeItem("adminUser");
+        router.replace("/admin");
       }
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    verifyAuth();
+  }, [router]);
 
   useEffect(() => {
+    if (!authed) return;
+
+    const loadData = async () => {
+      const token = typeof window !== "undefined" ? sessionStorage.getItem("adminAuthToken") : null;
+      if (!token) {
+        router.replace("/admin");
+        return;
+      }
+
+      try {
+        const [enrollmentsRes, cohortRes] = await Promise.all([
+          fetch("/api/admin/academy/enrollments", {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          }),
+          fetch("/api/academy/cohorts/confirmed", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }),
+        ]);
+
+        if (enrollmentsRes.status === 401) {
+          sessionStorage.removeItem("adminAuthToken");
+          sessionStorage.removeItem("adminUser");
+          router.replace("/admin");
+          return;
+        }
+
+        if (!enrollmentsRes.ok) throw new Error("Failed to fetch enrollments");
+        const enrollmentsJson = await enrollmentsRes.json();
+        setEnrollments(enrollmentsJson.enrollments || []);
+
+        if (cohortRes.ok) {
+          const cohortJson = await cohortRes.json();
+          setWhatsappGroupLink(cohortJson.whatsappGroupLink || null);
+        }
+      } catch (e: any) {
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     loadData();
-  }, [router]);
+  }, [authed, router]);
 
   const handleSendEmail = (enrollment: Enrollment) => {
     const tmpl = templates[getTemplateKey(enrollment.status)];
@@ -190,8 +226,7 @@ export default function AcademyEnrollmentsPage() {
   }
 
   return (
-    <AdminAuthGuard>
-      <div className="space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Course Enrollments</h1>
@@ -314,7 +349,6 @@ export default function AcademyEnrollmentsPage() {
           </div>
         </div>
       )}
-      </AdminAuthGuard>
     </div>
   );
 }
