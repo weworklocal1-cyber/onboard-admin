@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
-import { Clock, Award, Trophy, BookOpen, ChevronRight } from "lucide-react";
+import { Clock, Award, Trophy, BookOpen, ChevronRight, Briefcase } from "lucide-react";
 import Link from "next/link";
 
 interface ContinueCourse {
@@ -195,11 +195,18 @@ export default function AcademyDashboard() {
                   </button>
                 </Link>
                 {certificates.length > 0 && certificates.some(c => c.score >= 68) && (
-                  <Link href="/academy/internship-letter">
-                    <button className="bg-white/20 text-white border border-white/30 hover:bg-white/30 px-4 py-2 rounded-lg font-semibold text-sm flex items-center">
-                      Internship Letter <ChevronRight className="h-4 w-4 ml-1" />
-                    </button>
-                  </Link>
+                  <>
+                    <Link href="/academy/internship-application">
+                      <button className="bg-white/20 text-white border border-white/30 hover:bg-white/30 px-4 py-2 rounded-lg font-semibold text-sm flex items-center">
+                        Apply for Internship <Briefcase className="h-4 w-4 ml-1" />
+                      </button>
+                    </Link>
+                    <Link href="/academy/internship-letter">
+                      <button className="bg-white/20 text-white border border-white/30 hover:bg-white/30 px-4 py-2 rounded-lg font-semibold text-sm flex items-center">
+                        Internship Letter <ChevronRight className="h-4 w-4 ml-1" />
+                      </button>
+                    </Link>
+                  </>
                 )}
               </div>
             </div>
