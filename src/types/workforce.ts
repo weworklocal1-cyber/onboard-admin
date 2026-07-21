@@ -153,6 +153,18 @@ export interface Task {
   assignee?: Pick<Profile, 'id' | 'full_name' | 'profile_picture_url'>;
   creator?: Pick<Profile, 'id' | 'full_name'>;
   comments?: TaskComment[];
+  assignees?: TaskAssignee[];
+}
+
+export interface TaskAssignee {
+  id: string;
+  task_id: string;
+  employee_id: string;
+  status: string;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  employee?: Pick<Profile, 'id' | 'full_name' | 'profile_picture_url'>;
 }
 
 export interface TaskComment {

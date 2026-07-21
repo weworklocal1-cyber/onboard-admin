@@ -36,7 +36,6 @@ export default function LoginPage() {
       if (data.user) {
         toast.success("Welcome back!");
         router.refresh();
-        // Allow cookies to settle in document.cookie before full navigation
         setTimeout(() => {
           window.location.href = "/workforce/dashboard";
         }, 150);
@@ -45,6 +44,30 @@ export default function LoginPage() {
       setError("An unexpected error occurred");
       toast.error("An unexpected error occurred");
     } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMicrosoftLogin = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "azure",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        setError(error.message);
+        toast.error(error.message);
+        setIsLoading(false);
+      }
+    } catch {
+      setError("Failed to initiate Microsoft login");
+      toast.error("Failed to initiate Microsoft login");
       setIsLoading(false);
     }
   };
@@ -94,6 +117,31 @@ export default function LoginPage() {
             Sign In
           </Button>
         </form>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-white px-2 text-gray-500">Or continue with</span>
+          </div>
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          onClick={handleMicrosoftLogin}
+          disabled={isLoading}
+        >
+          <svg className="mr-2 h-4 w-4" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1" y="1" width="9" height="9" fill="#f3f3f3" />
+            <rect x="1" y="11" width="9" height="9" fill="#f3f3f3" />
+            <rect x="11" y="1" width="9" height="9" fill="#f3f3f3" />
+            <rect x="11" y="11" width="9" height="9" fill="#f3f3f3" />
+          </svg>
+          Sign in with Microsoft
+        </Button>
 
         <div className="text-center">
           <p className="text-sm text-gray-500">Internal platform for LocalWala employees</p>

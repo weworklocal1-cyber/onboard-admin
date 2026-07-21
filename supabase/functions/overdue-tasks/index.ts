@@ -1,6 +1,6 @@
 // @ts-nocheck
 // Supabase Edge Function: overdue-tasks
-// Runs periodically to flag overdue tasks and notify users.
+// Runs periodically to flag overdue tasks and notify users via in-app + Teams.
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -36,6 +36,7 @@ Deno.serve(async (req: Request) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const teamsWebhookUrl = Deno.env.get("TEAMS_WEBHOOK_URL");
 
     if (!supabaseUrl || !serviceRoleKey) {
       return new Response(
@@ -48,12 +49,11 @@ Deno.serve(async (req: Request) => {
     const today = getISTParts(new Date());
     const nowIso = new Date().toISOString();
 
-    // Find overdue tasks (due_date < now, not completed)
+    // Find overdue tasks (due_date < now, not completed, no blocker)
     const { data: overdueTasks, error: tasksErr } = await supabase
       .from("tasks")
-      .select("id, assigned_to, title, due_date, blocker_reason")
+      .select("id, assigned_to, title, due_date, priority, department, created_by")
       .neq("status", "completed")
-      .is("blocker_reason", null)
       .lt("due_date", nowIso);
 
     if (tasksErr) throw tasksErr;
@@ -67,31 +67,56 @@ Deno.serve(async (req: Request) => {
     const taskIds = overdueTasks.map((t: any) => t.id);
     let notified = 0;
 
-    // Insert notifications for assigned users
+    // Insert in-app notifications for assigned users
     for (const task of overdueTasks) {
       const { error: notifErr } = await supabase.from("notifications").insert({
         recipient_id: task.assigned_to,
         sender_id: null,
         type: "task_overdue",
         title: "Overdue Task",
-        message: `"${task.title}" is overdue. Please update status or unblock.`,
-        data: { task_id: task.id, due_date: task.due_date },
+        message: `"${task.title}" is overdue (due: ${task.due_date}). Please update status or unblock.`,
+        data: { task_id: task.id, due_date: task.due_date, priority: task.priority },
         read: false,
       });
       if (!notifErr) notified++;
     }
 
-    // Update tasks to set status as blocked if they have blocker_reason
-    const { error: updateErr } = await supabase
-      .from("tasks")
-      .update({ blocker_reason: "Overdue - auto-flagged" })
-      .in("id", taskIds);
+    // Send Teams notification for each overdue task
+    if (teamsWebhookUrl) {
+      for (const task of overdueTasks) {
+        const card = {
+          "@type": "MessageCard" as const,
+          "@context": "http://schema.org/extensions" as const,
+          themeColor: "FF0000",
+          title: "⚠️ Overdue Task",
+          sections: [
+            {
+              text: `Task **"${task.title}"** is overdue. Please update status or unblock.`,
+              facts: [
+                { name: "Due Date", value: task.due_date || "N/A" },
+                { name: "Priority", value: task.priority || "medium" },
+                { name: "Department", value: task.department || "N/A" },
+              ],
+            },
+          ],
+          potentialAction: [
+            {
+              "@type": "OpenUri" as const,
+              name: "Open Task",
+              targets: [{ os: "default", uri: `${supabaseUrl.replace("https://", "https://").replace("http://", "http://")}/workforce/tasks` }],
+            },
+          ],
+        };
 
-    if (updateErr) {
-      console.error("Failed to update task blockers:", updateErr);
+        await fetch(teamsWebhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(card),
+        });
+      }
     }
 
-    return new Response(JSON.stringify({ updated: taskIds.length, notified }), {
+    return new Response(JSON.stringify({ updated: taskIds.length, notified, teamsSent: !!teamsWebhookUrl }), {
       headers: { "content-type": "application/json" },
     });
   } catch (e) {

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "localwala-workforce-hub",
+  "packageName": "com.localwala.workforce",
+  "developer": {
+    "name": "LocalWala",
+    "websiteUrl": "https://onboard.localwala.tech",
+    "privacyUrl": "https://onboard.localwala.tech/privacy",
+    "termsOfUseUrl": "https://onboard.localwala.tech/privacy"
+  },
+  "name": {
+    "short": "Workforce Hub",
+    "full": "LocalWala Workforce Hub"
+  },
+  "description": {
+    "short": "Employee management, attendance, tasks, and leave management",
+    "full": "LocalWala Workforce Hub - Internal platform for employee management, attendance tracking, task management, and leave management."
+  },
+  "icons": {
+    "color": "assets/color.png",
+    "outline": "assets/outline.png"
+  },
+  "accentColor": "#10B981",
+  "permissions": [
+    "identity",
+    "messageTeamMembers"
+  ],
+  "validDomains": [
+    "onboard.localwala.tech",
+    "*.supabase.co"
+  ],
+  "tabs": [
+    {
+      "id": "dashboard",
+      "name": "Dashboard",
+      "description": "Workforce Hub Dashboard",
+      "contentUrl": "https://onboard.localwala.tech/teams/dashboard",
+      "websiteUrl": "https://onboard.localwala.tech/teams/dashboard",
+      "scopes": ["team"],
+      "supportedPlatforms": ["desktop", "mobile"],
+      "context": [
+        "personalTab",
+        "channelTab"
+      ]
+    }
+  ],
+  "webApplicationInfo": {
+    "id": "YOUR_AZURE_AD_APP_ID",
+    "resource": "api://YOUR_AZURE_AD_APP_ID"
+  }
+}

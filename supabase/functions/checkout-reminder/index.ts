@@ -77,6 +77,7 @@ Deno.serve(async (req: Request) => {
       .select("employee_id")
       .eq("date", today)
       .in("employee_id", employeeIds)
+      .not("check_in_time", "is", null)
       .is("check_out_time", null);
 
     if (attendanceErr) throw attendanceErr;
@@ -98,6 +99,29 @@ Deno.serve(async (req: Request) => {
 
     const { error: insertErr } = await supabase.from("notifications").insert(notificationRows);
     if (insertErr) throw insertErr;
+
+    // Send Teams notification
+    const teamsWebhookUrl = Deno.env.get("TEAMS_WEBHOOK_URL");
+    if (teamsWebhookUrl) {
+      const card = {
+        "@type": "MessageCard" as const,
+        "@context": "http://schema.org/extensions" as const,
+        themeColor: "FFA500",
+        title: "⏰ Checkout Reminder",
+        text: `You have **${remainingIds.length}** employee(s) checked in but not checked out today.`,
+        sections: [
+          {
+            text: `Please remind them to check out to log their working hours.`,
+          },
+        ],
+      };
+
+      await fetch(teamsWebhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(card),
+      }).catch(err => console.error("Teams notification failed:", err));
+    }
 
     return new Response(JSON.stringify({ inserted: notificationRows.length, today }), {
       headers: { "content-type": "application/json" },

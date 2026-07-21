@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import Link from "next/link";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { createClient } from "@/lib/supabase/client";
 import { LeaveType, LeaveRequest } from "@/types/workforce";
@@ -33,6 +34,8 @@ export default function LeavesPage() {
   const supabase = createClient();
   const [leaves, setLeaves] = useState<(LeaveRequest & { employee?: { full_name: string; department: string } })[]>([]);
   const [fetching, setFetching] = useState(true);
+  const [balances, setBalances] = useState<{ leave_type: string; total_allocated: number; used: number; remaining: number }[]>([]);
+  const [balancesLoading, setBalancesLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState("");
@@ -41,7 +44,12 @@ export default function LeavesPage() {
     start_date: "",
     end_date: "",
     reason: "",
+    is_half_day: false,
+    half_day_period: "morning" as "morning" | "afternoon",
   });
+  const [medicalCertificate, setMedicalCertificate] = useState<File | null>(null);
+  const [uploadingCertificate, setUploadingCertificate] = useState(false);
+  const medicalCertRef = useRef<HTMLInputElement>(null);
 
   const { isAdmin: checkAdmin } = usePermissions();
   const canApprove = checkAdmin(profile?.role || "");
@@ -49,7 +57,20 @@ export default function LeavesPage() {
   useEffect(() => {
     if (!profile) return;
     fetchLeaves();
+    fetchBalances();
   }, [profile, search]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchBalances = async () => {
+    setBalancesLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const url = search ? `/api/workforce/leave-balances?employee_id=${search}` : "/api/workforce/leave-balances";
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${session?.access_token}` },
+    });
+    const json = await res.json();
+    setBalances(json.balances || []);
+    setBalancesLoading(false);
+  };
 
   const fetchLeaves = async () => {
     setFetching(true);
@@ -97,6 +118,49 @@ export default function LeavesPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
+      let medicalCertificateUrl: string | null = null;
+
+      // Upload medical certificate if sick leave > 2 days
+      if (form.leave_type === "sick" && medicalCertificate && !form.is_half_day) {
+        const start = new Date(form.start_date);
+        const end = form.end_date ? new Date(form.end_date) : start;
+        const leaveDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+        if (leaveDays > 2) {
+          setUploadingCertificate(true);
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const fileExt = medicalCertificate.name.split(".").pop();
+            const fileName = `${profile!.id}/${Date.now()}_medical_certificate.${fileExt}`;
+
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from("medical_certificates")
+              .upload(fileName, medicalCertificate, {
+                contentType: medicalCertificate.type,
+                metadata: {
+                  employee_id: profile!.id,
+                  leave_type: "sick",
+                },
+              });
+
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage
+              .from("medical_certificates")
+              .getPublicUrl(fileName);
+
+            medicalCertificateUrl = publicUrl;
+          } catch (err: unknown) {
+            toast.error(err instanceof Error ? err.message : "Failed to upload medical certificate");
+            setSubmitting(false);
+            setUploadingCertificate(false);
+            return;
+          } finally {
+            setUploadingCertificate(false);
+          }
+        }
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch("/api/workforce/hcm/leaves", {
         method: "POST",
@@ -104,18 +168,29 @@ export default function LeavesPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session?.access_token}`,
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          leave_type: form.leave_type,
+          start_date: form.start_date,
+          end_date: form.is_half_day ? form.start_date : form.end_date,
+          reason: form.reason,
+          is_half_day: form.is_half_day,
+          half_day_period: form.is_half_day ? form.half_day_period : null,
+          medical_certificate_url: medicalCertificateUrl,
+        }),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Failed to apply leave");
       toast.success("Leave application submitted!");
       setShowModal(false);
-      setForm({ leave_type: "casual", start_date: "", end_date: "", reason: "" });
+      setForm({ leave_type: "casual", start_date: "", end_date: "", reason: "", is_half_day: false, half_day_period: "morning" });
+      setMedicalCertificate(null);
+      if (medicalCertRef.current) medicalCertRef.current.value = "";
       fetchLeaves();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to apply leave");
     } finally {
       setSubmitting(false);
+      setUploadingCertificate(false);
     }
   };
 
@@ -131,7 +206,10 @@ export default function LeavesPage() {
             {canApprove ? "View and approve leave requests" : "Apply and track your leave requests"}
           </p>
         </div>
-        <Button onClick={() => setShowModal(true)}>📅 Apply Leave</Button>
+        <div className="flex gap-2">
+          <Link href="/workforce/leave-calendar"><Button variant="outline" size="sm">📅 Calendar View</Button></Link>
+          <Button onClick={() => setShowModal(true)}>📅 Apply Leave</Button>
+        </div>
       </div>
 
       {canApprove && (
@@ -141,6 +219,29 @@ export default function LeavesPage() {
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xs"
         />
+      )}
+
+      {!search && (
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Leave Balance</h3>
+            {balancesLoading ? (
+              <div className="flex gap-3">{[...Array(4)].map((_, i) => <div key={i} className="h-12 w-24 rounded-lg bg-gray-100 animate-pulse" />)}</div>
+            ) : balances.length === 0 ? (
+              <p className="text-xs text-gray-500">No leave balances configured.</p>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {balances.map((balance) => (
+                  <div key={balance.leave_type} className="flex flex-col items-center p-3 rounded-lg bg-gray-50 border border-gray-100 min-w-[100px]">
+                    <span className="text-xs text-gray-500 capitalize">{balance.leave_type.replace(/_/g, " ")}</span>
+                    <span className="text-lg font-bold text-brand-primary">{balance.remaining}</span>
+                    <span className="text-[10px] text-gray-400">of {balance.total_allocated} left</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {fetching ? (
@@ -163,8 +264,21 @@ export default function LeavesPage() {
                     </p>
                   )}
                   <p className="font-semibold">{leave.leave_type.replace(/_/g, " ")}</p>
-                  <p className="text-sm text-gray-500">{leave.start_date} → {leave.end_date}</p>
+                  <p className="text-sm text-gray-500">
+                    {leave.start_date}
+                    {leave.end_date && leave.end_date !== leave.start_date && ` → ${leave.end_date}`}
+                    {(leave as any).is_half_day && (
+                      <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                        Half Day ({(leave as any).half_day_period})
+                      </span>
+                    )}
+                  </p>
                   {leave.reason && <p className="text-xs text-gray-400 mt-1">{leave.reason}</p>}
+                  {(leave as any).medical_certificate_url && (
+                    <a href={(leave as any).medical_certificate_url} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-primary hover:underline mt-1 inline-block">
+                      📄 View Medical Certificate
+                    </a>
+                  )}
                 </div>
 <div className="flex items-center gap-2">
                    <Badge className={STATUS_COLORS[leave.status]}>{leave.status}</Badge>
@@ -200,17 +314,74 @@ export default function LeavesPage() {
                   <Input type="date" value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })} required />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>End Date *</Label>
-                  <Input type="date" value={form.end_date} onChange={e => setForm({ ...form, end_date: e.target.value })} required />
+                  <Label>End Date</Label>
+                  <Input type="date" value={form.end_date} onChange={e => setForm({ ...form, end_date: e.target.value })} disabled={form.is_half_day} />
                 </div>
               </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="is_half_day"
+                  checked={form.is_half_day}
+                  onChange={e => setForm({ ...form, is_half_day: e.target.checked })}
+                  className="rounded"
+                />
+                <Label htmlFor="is_half_day" className="cursor-pointer">
+                  Half Day Leave
+                </Label>
+              </div>
+              {form.is_half_day && (
+                <div className="space-y-1.5">
+                  <Label>Half Day Period *</Label>
+                  <select
+                    value={form.half_day_period}
+                    onChange={e => setForm({ ...form, half_day_period: e.target.value as "morning" | "afternoon" })}
+                    className="w-full rounded-lg border border-input bg-white px-3 py-2 text-sm"
+                  >
+                    <option value="morning">Morning</option>
+                    <option value="afternoon">Afternoon</option>
+                  </select>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label>Reason</Label>
                 <textarea value={form.reason} onChange={e => setForm({ ...form, reason: e.target.value })} className="w-full rounded-lg border border-input bg-white px-3 py-2 text-sm" rows={3} />
               </div>
+
+              {form.leave_type === "sick" && !form.is_half_day && (
+                <div className="space-y-1.5">
+                  <Label>
+                    Medical Certificate {form.start_date && form.end_date && (() => {
+                      const start = new Date(form.start_date);
+                      const end = new Date(form.end_date);
+                      const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+                      return days > 2 ? <span className="text-red-500">*</span> : <span className="text-gray-400">(optional)</span>;
+                    })()}
+                  </Label>
+                  <input
+                    ref={medicalCertRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    onChange={e => setMedicalCertificate(e.target.files?.[0] || null)}
+                    className="text-sm"
+                    required={form.leave_type === "sick" && !form.is_half_day && form.start_date && form.end_date ? (() => {
+                      const start = new Date(form.start_date);
+                      const end = new Date(form.end_date);
+                      const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+                      return days > 2;
+                    })() : false}
+                  />
+                  {medicalCertificate && (
+                    <p className="text-xs text-green-600">✓ {medicalCertificate.name}</p>
+                  )}
+                </div>
+              )}
+
               <div className="flex gap-2 pt-2">
-                <Button type="submit" className="flex-1" disabled={submitting}>{submitting ? "Submitting..." : "Apply Leave"}</Button>
-                <Button type="button" variant="outline" onClick={() => setShowModal(false)}>Cancel</Button>
+                <Button type="submit" className="flex-1" disabled={submitting || uploadingCertificate}>
+                  {submitting || uploadingCertificate ? "Submitting..." : "Apply Leave"}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => { setShowModal(false); setMedicalCertificate(null); if (medicalCertRef.current) medicalCertRef.current.value = ""; }}>Cancel</Button>
               </div>
             </form>
           </div>

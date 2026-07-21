@@ -1,7 +1,7 @@
 // @ts-nocheck
 // Supabase Edge Function: follow-up-reminder
 // Runs every 15 minutes to remind about pending follow-ups.
-// Inserts into `notifications` table.
+// Inserts into `notifications` table and sends Teams notification.
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -37,6 +37,7 @@ Deno.serve(async (req: Request) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const teamsWebhookUrl = Deno.env.get("TEAMS_WEBHOOK_URL");
 
     if (!supabaseUrl || !serviceRoleKey) {
       return new Response(
@@ -67,13 +68,16 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Check for existing notifications (avoid duplicates)
+    // Check for existing notifications (avoid duplicates within last 2 hours)
     const followUpIds = followUps.map((f: any) => f.id);
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+
     const { data: existingNotes } = await supabase
       .from("notifications")
-      .select("recipient_id, data")
+      .select("recipient_id, data, created_at")
       .eq("type", "follow_up_reminder")
-      .in("data->follow_up_id", followUpIds);
+      .in("data->follow_up_id", followUpIds)
+      .gte("created_at", twoHoursAgo);
 
     const notifiedFollowUpIds = new Set(
       (existingNotes || []).map((n: any) => n.data?.follow_up_id)
@@ -84,15 +88,53 @@ Deno.serve(async (req: Request) => {
       .map((f: any) => ({
         recipient_id: f.assigned_to,
         sender_id: null,
-        type: "follow_up_reminder" as any,
+        type: "follow_up_reminder",
         title: "Follow-up Due",
         message: `Follow-up for ${f.restaurant?.name || "restaurant"} is scheduled. Please complete: ${f.follow_up_type}.`,
-        data: { follow_up_id: f.id, scheduled_at: f.scheduled_at },
+        data: { follow_up_id: f.id, scheduled_at: f.scheduled_at, restaurant_name: f.restaurant?.name || "" },
         read: false,
       }));
 
+    if (notificationRows.length === 0) {
+      return new Response(JSON.stringify({ inserted: 0, today, reason: "duplicates" }), {
+        headers: { "content-type": "application/json" },
+      });
+    }
+
     const { error: insertErr } = await supabase.from("notifications").insert(notificationRows);
     if (insertErr) throw insertErr;
+
+    // Send Teams notification summary
+    if (teamsWebhookUrl) {
+      const card = {
+        "@type": "MessageCard" as const,
+        "@context": "http://schema.org/extensions" as const,
+        themeColor: "0076D7",
+        title: "📞 Follow-up Reminders",
+        text: `You have **${notificationRows.length}** pending follow-up(s) due now.`,
+        sections: [
+          {
+            text: notificationRows.slice(0, 5).map((row: any) => {
+              const followUp = followUps.find((f: any) => f.id === row.data?.follow_up_id);
+              return followUp ? `• ${followUp.restaurant?.name || "Restaurant"} - ${followUp.follow_up_type}` : "";
+            }).filter(Boolean).join("\n"),
+          },
+        ],
+        potentialAction: [
+          {
+            "@type": "OpenUri" as const,
+            name: "Open Follow-ups",
+            targets: [{ os: "default", uri: `${supabaseUrl.replace("https://", "https://").replace("http://", "http://")}/workforce/follow-ups` }],
+          },
+        ],
+      };
+
+      await fetch(teamsWebhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(card),
+      }).catch(err => console.error("Teams notification failed:", err));
+    }
 
     return new Response(JSON.stringify({ inserted: notificationRows.length, today }), {
       headers: { "content-type": "application/json" },

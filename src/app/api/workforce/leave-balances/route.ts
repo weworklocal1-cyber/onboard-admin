@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
-import { isAdmin } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -28,37 +27,26 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const status = searchParams.get("status");
   const employeeId = searchParams.get("employee_id");
-  const startDate = searchParams.get("start_date");
-  const endDate = searchParams.get("end_date");
 
-  const userIsAdmin = await isAdmin(sessionUser.role);
   let query = supabaseAdmin
-    .from("leave_requests")
-    .select(`*, employee:profiles!employee_id(full_name, department), approver:profiles!approved_by(full_name)`)
-    .order("start_date", { ascending: true });
+    .from("leave_balances")
+    .select("*")
+    .order("leave_type", { ascending: true });
 
-  if (status) query = query.eq("status", status);
-  if (startDate) query = query.gte("start_date", startDate);
-  if (endDate) query = query.lte("end_date", endDate);
   if (employeeId) {
-    if (userIsAdmin) {
-      query = query.eq("employee_id", employeeId);
-    } else {
-      query = query.eq("employee_id", sessionUser.id);
-    }
-  } else if (!userIsAdmin) {
+    query = query.eq("employee_id", employeeId);
+  } else {
     query = query.eq("employee_id", sessionUser.id);
   }
 
-  const { data: leaves, error } = await query;
+  const { data: balances, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ leaves });
+  return NextResponse.json({ balances: balances || [] });
 }
 
 export async function POST(request: Request) {
@@ -69,29 +57,22 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { leave_type, start_date, end_date, reason, is_half_day, half_day_period, medical_certificate_url } = body;
+    const { employee_id, leave_type, total_allocated, used, effective_from, effective_to, notes } = body;
 
-    if (!leave_type || !start_date) {
-      return NextResponse.json({ error: "Leave type and start date are required" }, { status: 400 });
-    }
-
-    // Validate half-day fields
-    if (is_half_day && !half_day_period) {
-      return NextResponse.json({ error: "Half-day period is required for half-day leave" }, { status: 400 });
+    if (!employee_id || !leave_type || !total_allocated) {
+      return NextResponse.json({ error: "employee_id, leave_type, and total_allocated are required" }, { status: 400 });
     }
 
     const { data, error } = await supabaseAdmin
-      .from("leave_requests")
-      .insert({
-        employee_id: sessionUser.id,
+      .from("leave_balances")
+      .upsert({
+        employee_id,
         leave_type,
-        start_date,
-        end_date: is_half_day ? start_date : end_date,
-        reason,
-        status: "pending",
-        is_half_day: is_half_day || false,
-        half_day_period: is_half_day ? half_day_period : null,
-        medical_certificate_url: medical_certificate_url || null,
+        total_allocated: parseFloat(total_allocated),
+        used: used ? parseFloat(used) : 0,
+        effective_from: effective_from || new Date().toISOString().split("T")[0],
+        effective_to: effective_to || null,
+        notes: notes || null,
       })
       .select("*")
       .single();
@@ -100,7 +81,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, leave: data });
+    return NextResponse.json({ success: true, balance: data });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Bad request";
     return NextResponse.json({ error: message }, { status: 400 });
