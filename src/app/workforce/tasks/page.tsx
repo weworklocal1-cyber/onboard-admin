@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import Link from "next/link";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { createClient } from "@/lib/supabase/client";
 import { Task, TaskPriority, Department, PRIORITY_COLORS, TaskComment } from "@/types/workforce";
@@ -290,7 +291,10 @@ export default function TasksPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Tasks</h1>
-        <Button onClick={() => setShowAddModal(true)}>➕ New Task</Button>
+        <div className="flex gap-2">
+          <Link href="/workforce/team-tasks"><Button variant="outline">👥 Team Tasks</Button></Link>
+          <Button onClick={() => setShowAddModal(true)}>➕ New Task</Button>
+        </div>
       </div>
 
       <Card>
