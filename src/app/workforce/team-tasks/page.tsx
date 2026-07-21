@@ -68,7 +68,7 @@ export default function TeamTasksPage() {
   const fetchTeamTasks = async () => {
     setFetching(true);
     try {
-      let query = supabase
+      const query = supabase
         .from("task_assignees")
         .select(`
           employee_id,
