@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Profile, HrDocument, HrDocumentType, HR_DOCUMENT_LABELS, AttendanceStatus, TaskPriority } from "@/types/workforce";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 import { format, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { toast } from "sonner";
 
 type Period = "today" | "week" | "month";
 
@@ -100,38 +101,37 @@ export default function ReportsPage() {
 
     setLoading(true);
     try {
-      const fileExt = uploadFile.name.split('.').pop();
-      const fileName = `${selectedEmployee}/${selectedType}-${Date.now()}.${fileExt}`;
+      const { data: { session } } = await supabase.auth.getSession();
+      const formData = new FormData();
+      formData.append("file", uploadFile);
+      formData.append("document_type", selectedType);
+      formData.append("employee_id", selectedEmployee);
 
-      const { error: uploadError } = await supabase.storage
-        .from('employee-documents')
-        .upload(fileName, uploadFile);
+      const res = await fetch("/api/workforce/hr-documents", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+        body: formData,
+      });
 
-      if (uploadError) throw uploadError;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Upload failed");
+      }
 
-      const { data: urlData } = supabase.storage.from('employee-documents').getPublicUrl(fileName);
-
-      const { error: insertError } = await supabase
-        .from('hr_documents')
-        .insert({
-          employee_id: selectedEmployee,
-          document_type: selectedType,
-          file_url: urlData.publicUrl,
-          file_name: uploadFile.name,
-          uploaded_by: profile.id,
-        });
-
-      if (insertError) throw insertError;
-
+      toast.success("Document uploaded successfully");
       setUploadFile(null);
-      const { data } = await supabase.from('hr_documents')
-        .select("*, employee:profiles!employee_id(full_name), uploader:profiles!uploaded_by(full_name)")
-        .order('created_at', { ascending: false });
-      setDocuments(data || []);
+      const documentsRes = await fetch("/api/workforce/hr-documents", {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (documentsRes.ok) {
+        const data = await documentsRes.json();
+        setDocuments(data.documents || []);
+      }
     } catch (err) {
-      alert('Error: ' + (err instanceof Error ? err.message : "Upload failed"));
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   if (!profile) return null;

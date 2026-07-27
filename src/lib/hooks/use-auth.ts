@@ -1,21 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Profile } from "@/types/workforce";
 import { User } from "@supabase/supabase-js";
 
 export function useAuth() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
+
     const getUser = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+      
+      if (!active) return;
       setUser(user);
       
       if (user) {
@@ -24,9 +28,10 @@ export function useAuth() {
           .select("*")
           .eq("id", user.id)
           .single();
+        if (!active) return;
         setProfile(profileData as Profile);
       }
-      setLoading(false);
+      if (active) setLoading(false);
     };
 
     getUser();
@@ -49,7 +54,10 @@ export function useAuth() {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, [supabase]);
 
   return { user, profile, loading };

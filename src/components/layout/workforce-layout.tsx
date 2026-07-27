@@ -36,9 +36,63 @@ const ALL_NAV: NavItem[] = [
     icon: "📋",
   },
   {
+    name: "Task Calendar",
+    href: "/workforce/tasks/calendar",
+    icon: "📅",
+  },
+  {
+    name: "Task Analytics",
+    href: "/workforce/task-analytics",
+    icon: "📊",
+    permission: "LEAD_AND_ABOVE",
+  },
+  {
     name: "Daily Updates",
     href: "/workforce/daily-updates",
     icon: "📝",
+  },
+  {
+    name: "Team Updates",
+    href: "/workforce/team-updates",
+    icon: "📝",
+    permission: "LEAD_AND_ABOVE",
+  },
+  {
+    name: "My Profile",
+    href: "/workforce/profile",
+    icon: "👤",
+  },
+  {
+    name: "Salaries",
+    href: "/workforce/salaries",
+    icon: "💰",
+  },
+  {
+    name: "Expenses",
+    href: "/workforce/expenses",
+    icon: "💸",
+  },
+  {
+    name: "Assets",
+    href: "/workforce/assets",
+    icon: "📦",
+  },
+  {
+    name: "Meeting Notes",
+    href: "/workforce/meeting-notes",
+    icon: "📝",
+    permission: "LEAD_AND_ABOVE",
+  },
+  {
+    name: "Shift Roster",
+    href: "/workforce/roster",
+    icon: "📅",
+  },
+  {
+    name: "Manage Shifts",
+    href: "/workforce/shifts",
+    icon: "⏱️",
+    permission: "LEAD_AND_ABOVE",
   },
   {
     name: "Leaves",
@@ -82,22 +136,58 @@ const ALL_NAV: NavItem[] = [
     permission: "HR_ROLES",
   },
   {
+    name: "Directory",
+    href: "/workforce/directory",
+    icon: "📇",
+    permission: "HR_ROLES",
+  },
+  {
     name: "Recruitment",
     href: "/workforce/recruitment",
     icon: "📌",
     permission: "HR_ROLES",
   },
-{
+  {
+    name: "Onboarding",
+    href: "/workforce/onboarding",
+    icon: "🚀",
+    permission: "HR_ROLES",
+  },
+  {
+    name: "Offboarding",
+    href: "/workforce/offboarding",
+    icon: "👋",
+    permission: "HR_ROLES",
+  },
+  {
+    name: "Approvals",
+    href: "/workforce/approvals",
+    icon: "✅",
+    permission: "LEAD_AND_ABOVE",
+  },
+  {
+    name: "Work Preferences",
+    href: "/workforce/work-preferences",
+    icon: "🗓️",
+    permission: "HR_ROLES",
+  },
+  {
     name: "HR Docs",
     href: "/workforce/hr",
     icon: "📄",
     permission: "HR_ROLES",
   },
   {
-    name: "ID Cards",
-    href: "/workforce/id-cards",
-    icon: "🪪",
+    name: "Performance",
+    href: "/workforce/performance-reviews",
+    icon: "⭐",
     permission: "HR_ROLES",
+  },
+  {
+    name: "PIP",
+    href: "/workforce/performance-improvement-plans",
+    icon: "📋",
+    permission: "ADMIN_ROLES",
   },
   {
     name: "Notifications",
@@ -109,6 +199,48 @@ const ALL_NAV: NavItem[] = [
     href: "/workforce/reports",
     icon: "📈",
     permission: "HR_ROLES",
+  },
+  {
+    name: "Audit Logs",
+    href: "/workforce/audit-logs",
+    icon: "📋",
+    permission: "LEAD_AND_ABOVE",
+  },
+  {
+    name: "Dev Tools",
+    href: "/workforce/github-dev-tools",
+    icon: "⌨️",
+    permission: "LEAD_AND_ABOVE",
+  },
+  {
+    name: "Notification Settings",
+    href: "/workforce/notification-preferences",
+    icon: "🔔",
+    permission: "LEAD_AND_ABOVE",
+  },
+  {
+    name: "Projects & Sprints",
+    href: "/workforce/projects",
+    icon: "🚀",
+    permission: "LEAD_AND_ABOVE",
+  },
+  {
+    name: "Burndown",
+    href: "/workforce/sprint-burndown",
+    icon: "📊",
+    permission: "LEAD_AND_ABOVE",
+  },
+  {
+    name: "Goals & OKRs",
+    href: "/workforce/goals",
+    icon: "🎯",
+    permission: "LEAD_AND_ABOVE",
+  },
+  {
+    name: "Settings",
+    href: "/workforce/settings",
+    icon: "⚙️",
+    permission: "LEAD_AND_ABOVE",
   },
 ];
 

@@ -18,6 +18,7 @@ export default function SalariesPage() {
   const [employees, setEmployees] = useState<Pick<Profile, 'id' | 'full_name' | 'department' | 'designation'>[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedSalary, setSelectedSalary] = useState<SalaryRecord | null>(null);
   const [form, setForm] = useState({
     employee_id: "",
     gross_salary: "",
@@ -39,7 +40,7 @@ export default function SalariesPage() {
     notes: "",
   });
 
-  const isAdmin = profile?.role && ["founder", "super_admin", "hr_admin"].includes(profile.role);
+  const isAdmin = !!profile?.role && ["founder", "super_admin", "hr_admin"].includes(profile.role);
 
   useEffect(() => {
     if (!profile) return;
@@ -127,6 +128,36 @@ export default function SalariesPage() {
     return gross - pf - pt - tds - other;
   };
 
+  const exportToCSV = () => {
+    const headers = ["Employee", "Designation", "Department", "Gross Salary", "Net Salary", "Frequency", "Effective From", "Effective To", "Status"];
+    const rows = salaries.map(s => [
+      s.employee?.full_name || "",
+      s.employee?.designation || "",
+      s.employee?.department || "",
+      Number(s.gross_salary).toLocaleString(),
+      Number(s.net_salary || s.gross_salary).toLocaleString(),
+      s.payment_frequency?.replace(/_/g, " ") || "",
+      s.effective_from ? new Date(s.effective_from).toLocaleDateString() : "",
+      s.effective_to ? new Date(s.effective_to).toLocaleDateString() : "",
+      s.status || "",
+    ]);
+
+    const csvContent = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `salaries_${new Date().toISOString().split("T")[0]}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const printPayslip = (salary: SalaryRecord) => {
+    setSelectedSalary(salary);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -141,23 +172,30 @@ export default function SalariesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Salary Management</h1>
-          <p className="text-gray-500">Manage employee salaries and payouts</p>
+          <h1 className="text-2xl font-bold">{isAdmin ? "Salary Management" : "My Salary"}</h1>
+          <p className="text-gray-500">
+            {isAdmin ? "Manage employee salaries and payouts" : "View your salary history and payslips"}
+          </p>
         </div>
         {isAdmin && (
-          <Button onClick={() => setShowAddModal(true)}>💰 Add Salary</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={exportToCSV}>📥 Export CSV</Button>
+            <Button onClick={() => setShowAddModal(true)}>💰 Add Salary</Button>
+          </div>
         )}
       </div>
 
       {salaries.length === 0 ? (
         <div className="text-center py-20 text-gray-400">
           <p className="text-5xl mb-3">💰</p>
-          <p className="font-semibold text-gray-600">No salary records</p>
+          <p className="font-semibold text-gray-600">
+            {isAdmin ? "No salary records" : "No salary records found"}
+          </p>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {salaries.map((salary) => (
-            <SalaryCard key={salary.id} salary={salary} />
+            <SalaryCard key={salary.id} salary={salary} isAdmin={isAdmin} onViewPayslip={() => printPayslip(salary)} />
           ))}
         </div>
       )}
@@ -360,11 +398,87 @@ export default function SalariesPage() {
           </div>
         </div>
       )}
+
+      {selectedSalary && !isAdmin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold">Payslip</h2>
+                <p className="text-xs text-gray-500">
+                  {new Date(selectedSalary.effective_from).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
+                </p>
+              </div>
+              <Button variant="ghost" onClick={() => setSelectedSalary(null)}>✕</Button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold">{profile?.full_name || "Employee"}</p>
+                  <p className="text-sm text-gray-500">{selectedSalary.employee?.designation}</p>
+                </div>
+                <Badge variant="outline" className="capitalize">{selectedSalary.payment_frequency?.replace(/_/g, " ")}</Badge>
+              </div>
+              <div className="border-t pt-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Gross Salary</span>
+                  <span className="font-semibold">₹{Number(selectedSalary.gross_salary).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Base Salary</span>
+                  <span>₹{Number(selectedSalary.base_salary || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">HRA</span>
+                  <span>₹{Number(selectedSalary.hra || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Special Allowance</span>
+                  <span>₹{Number(selectedSalary.special_allowance || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Performance Bonus</span>
+                  <span>₹{Number(selectedSalary.performance_bonus || 0).toLocaleString()}</span>
+                </div>
+              </div>
+              <div className="border-t pt-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">PF (Employee)</span>
+                  <span>₹{Number(selectedSalary.pf_employee || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Professional Tax</span>
+                  <span>₹{Number(selectedSalary.professional_tax || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">TDS</span>
+                  <span>₹{Number(selectedSalary.tds || 0).toLocaleString()}</span>
+                </div>
+              </div>
+              <div className="border-t pt-4">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold">Net Salary</span>
+                  <span className="text-xl font-bold text-brand-primary">
+                    ₹{Number(selectedSalary.net_salary || selectedSalary.gross_salary).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+              {selectedSalary.perks && (
+                <p className="text-xs text-gray-500">🎁 {selectedSalary.perks}</p>
+              )}
+            </div>
+            <div className="p-6 border-t border-gray-100 flex gap-2">
+              <Button className="flex-1" onClick={() => window.print()}>🖨️ Print / Save PDF</Button>
+              <Button variant="outline" onClick={() => setSelectedSalary(null)}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function SalaryCard({ salary }: { salary: SalaryRecord }) {
+function SalaryCard({ salary, isAdmin, onViewPayslip }: { salary: SalaryRecord; isAdmin?: boolean; onViewPayslip?: () => void }) {
   return (
     <Card className="border-gray-200 shadow-sm hover:shadow-md transition-shadow">
       <CardHeader>
@@ -397,6 +511,11 @@ function SalaryCard({ salary }: { salary: SalaryRecord }) {
           <p className="text-xs text-gray-400">
             To: {new Date(salary.effective_to).toLocaleDateString()}
           </p>
+        )}
+        {!isAdmin && onViewPayslip && (
+          <Button size="sm" variant="outline" className="w-full mt-3" onClick={onViewPayslip}>
+            📄 View Payslip
+          </Button>
         )}
       </CardContent>
     </Card>

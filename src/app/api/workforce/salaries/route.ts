@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 
   // Employees can only see their own salary
   const isAdmin = ADMIN_ROLES.includes(sessionUser.role);
-  if (!isAdmin && employeeId !== sessionUser.id && !employeeId) {
+  if (!isAdmin && employeeId && employeeId !== sessionUser.id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,6 +19,37 @@ export default function DailyUpdatesPage() {
   const [planForTomorrow, setPlanForTomorrow] = useState("");
   const [blockers, setBlockers] = useState("");
   const [mood, setMood] = useState<Mood | "">("");
+  const [submitted, setSubmitted] = useState(false);
+  const [myUpdate, setMyUpdate] = useState<{
+    id: string;
+    completed_today: string;
+    plan_for_tomorrow: string;
+    blockers: string | null;
+    has_blocker: boolean;
+    mood: Mood | null;
+    submitted_at: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!profile) return;
+    const fetchMyUpdate = async () => {
+      const { data } = await supabase
+        .from("daily_updates")
+        .select("*")
+        .eq("employee_id", profile.id)
+        .eq("date", format(new Date(), "yyyy-MM-dd"))
+        .maybeSingle();
+      if (data) {
+        setMyUpdate(data as any);
+        setCompletedToday(data.completed_today || "");
+        setPlanForTomorrow(data.plan_for_tomorrow || "");
+        setBlockers(data.blockers || "");
+        setMood(data.mood || "");
+        setSubmitted(true);
+      }
+    };
+    fetchMyUpdate();
+  }, [profile, supabase]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,18 +57,39 @@ export default function DailyUpdatesPage() {
 
     setSubmitting(true);
     try {
-      const { error } = await supabase.from("daily_updates").upsert({
+      const today = format(new Date(), "yyyy-MM-dd");
+      const payload = {
         employee_id: profile.id,
-        date: format(new Date(), "yyyy-MM-dd"),
+        date: today,
         completed_today: completedToday,
         plan_for_tomorrow: planForTomorrow,
         blockers: blockers || null,
         has_blocker: !!blockers,
         mood: mood || null,
-      });
+      };
 
-      if (error) throw error;
-      toast.success("Daily update submitted!");
+      const { data: existing } = await supabase
+        .from("daily_updates")
+        .select("id")
+        .eq("employee_id", profile.id)
+        .eq("date", today)
+        .maybeSingle();
+
+      if (existing) {
+        const { error } = await supabase.from("daily_updates").update(payload).eq("id", existing.id);
+        if (error) throw error;
+        toast.success("Daily update updated!");
+      } else {
+        const { error } = await supabase.from("daily_updates").insert(payload);
+        if (error) throw error;
+        toast.success("Daily update submitted!");
+      }
+
+      setCompletedToday("");
+      setPlanForTomorrow("");
+      setBlockers("");
+      setMood("");
+      setSubmitted(true);
     } catch (err) {
       console.error("Error submitting update:", err);
       toast.error("Failed to submit update");
@@ -69,79 +121,120 @@ export default function DailyUpdatesPage() {
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>{today}</span>
-            <Badge variant="outline">Due Today</Badge>
+            <div className="flex items-center gap-2">
+              {submitted && (
+                <Badge variant="success">Submitted</Badge>
+              )}
+              {!submitted && (
+                <Badge variant="outline">Due Today</Badge>
+              )}
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                What did you complete today? <span className="text-red-500">*</span>
-              </label>
-              <Textarea
-                placeholder="Describe your accomplishments..."
-                value={completedToday}
-                onChange={(e) => setCompletedToday(e.target.value)}
-                required
-                minLength={50}
-                rows={3}
-              />
-              <p className="text-xs text-gray-500">
-                Min 50 characters ({completedToday.length}/50)
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                What will you work on tomorrow? <span className="text-red-500">*</span>
-              </label>
-              <Textarea
-                placeholder="Your plans for tomorrow..."
-                value={planForTomorrow}
-                onChange={(e) => setPlanForTomorrow(e.target.value)}
-                required
-                minLength={30}
-                rows={2}
-              />
-              <p className="text-xs text-gray-500">
-                Min 30 characters ({planForTomorrow.length}/30)
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Any blockers or dependencies?
-              </label>
-              <Textarea
-                placeholder="Describe any blockers (optional)..."
-                value={blockers}
-                onChange={(e) => setBlockers(e.target.value)}
-                rows={2}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Energy Level / Mood</label>
+          {submitted && !submitting ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm font-semibold text-green-800">✅ You have submitted your daily update.</p>
+                <p className="text-xs text-green-700 mt-1">Submitted at {myUpdate ? format(new Date(myUpdate.submitted_at), "hh:mm a") : ""}</p>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">✅ Completed Today:</p>
+                  <p className="text-sm text-gray-600 whitespace-pre-wrap">{completedToday}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-700">📅 Plan for Tomorrow:</p>
+                  <p className="text-sm text-gray-600 whitespace-pre-wrap">{planForTomorrow}</p>
+                </div>
+                {blockers && (
+                  <div>
+                    <p className="text-sm font-medium text-red-700">🚫 Blockers:</p>
+                    <p className="text-sm text-red-600 whitespace-pre-wrap">{blockers}</p>
+                  </div>
+                )}
+                {mood && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Mood:</p>
+                    <span className="text-lg">{MOOD_EMOJIS[mood]}</span>
+                  </div>
+                )}
+              </div>
               <div className="flex gap-2">
-                {(["great", "good", "neutral", "bad", "terrible"] as Mood[]).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setMood(mood === m ? "" : m)}
-                    className={`text-2xl p-2 rounded-lg transition-transform ${
-                      mood === m ? "bg-brand-primary/10 scale-110" : "hover:bg-gray-100"
-                    }`}
-                  >
-                    {MOOD_EMOJIS[m]}
-                  </button>
-                ))}
+                <Button onClick={() => setSubmitted(false)} className="flex-1">Edit Update</Button>
               </div>
             </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  What did you complete today? <span className="text-red-500">*</span>
+                </label>
+                <Textarea
+                  placeholder="Describe your accomplishments..."
+                  value={completedToday}
+                  onChange={(e) => setCompletedToday(e.target.value)}
+                  required
+                  minLength={50}
+                  rows={3}
+                />
+                <p className="text-xs text-gray-500">
+                  Min 50 characters ({completedToday.length}/50)
+                </p>
+              </div>
 
-            <Button type="submit" className="w-full" isLoading={submitting}>
-              Submit Update
-            </Button>
-          </form>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  What will you work on tomorrow? <span className="text-red-500">*</span>
+                </label>
+                <Textarea
+                  placeholder="Your plans for tomorrow..."
+                  value={planForTomorrow}
+                  onChange={(e) => setPlanForTomorrow(e.target.value)}
+                  required
+                  minLength={30}
+                  rows={2}
+                />
+                <p className="text-xs text-gray-500">
+                  Min 30 characters ({planForTomorrow.length}/30)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Any blockers or dependencies?
+                </label>
+                <Textarea
+                  placeholder="Describe any blockers (optional)..."
+                  value={blockers}
+                  onChange={(e) => setBlockers(e.target.value)}
+                  rows={2}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Energy Level / Mood</label>
+                <div className="flex gap-2">
+                  {(["great", "good", "neutral", "bad", "terrible"] as Mood[]).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setMood(mood === m ? "" : m)}
+                      className={`text-2xl p-2 rounded-lg transition-transform ${
+                        mood === m ? "bg-brand-primary/10 scale-110" : "hover:bg-gray-100"
+                      }`}
+                    >
+                      {MOOD_EMOJIS[m]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full" isLoading={submitting}>
+                {myUpdate ? "Update Submission" : "Submit Update"}
+              </Button>
+            </form>
+          )}
         </CardContent>
       </Card>
     </div>

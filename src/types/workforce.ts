@@ -26,7 +26,13 @@ export type AttendanceStatus =
 
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 
-export type TaskStatus = 'todo' | 'in_progress' | 'completed' | 'blocked';
+export type TaskStatus = 'todo' | 'in_progress' | 'completed' | 'blocked' | 'in_review' | 'approved' | 'rejected';
+
+export type QualityFlag = 'clean' | 'needs_rework' | 'blocked_quality' | 'approved_with_comments';
+
+export type ProjectStatus = 'active' | 'completed' | 'paused' | 'archived';
+
+export type SprintStatus = 'planned' | 'active' | 'completed' | 'cancelled';
 
 export type RestaurantStatus =
   | 'new_lead'
@@ -71,6 +77,11 @@ export type NotificationType =
   | 'blocker_flagged'
   | 'restaurant_status_changed'
   | 'campaign_assigned'
+  | 'schedule_assigned'
+  | 'schedule_updated'
+  | 'leave_requested'
+  | 'leave_approved'
+  | 'leave_rejected'
   | 'general';
 
 export type Mood = 'terrible' | 'bad' | 'neutral' | 'good' | 'great';
@@ -147,6 +158,16 @@ export interface Task {
   tags: string[] | null;
   attachment_urls: string[] | null;
   completed_at: string | null;
+  completion_notes: string | null;
+  requires_approval: boolean;
+  approved_by: string | null;
+  approved_at: string | null;
+  approval_notes: string | null;
+  quality_flag: QualityFlag | null;
+  billable: boolean;
+  billable_rate: number | null;
+  project_id: string | null;
+  sprint_id: string | null;
   created_at: string;
   updated_at: string;
   // Joined fields
@@ -154,6 +175,10 @@ export interface Task {
   creator?: Pick<Profile, 'id' | 'full_name'>;
   comments?: TaskComment[];
   assignees?: TaskAssignee[];
+  watchers?: TaskWatcher[];
+  approver?: Pick<Profile, 'id' | 'full_name'>;
+  project?: Pick<Project, 'id' | 'name'>;
+  sprint?: Pick<Sprint, 'id' | 'name'>;
 }
 
 export interface TaskAssignee {
@@ -165,6 +190,54 @@ export interface TaskAssignee {
   created_at: string;
   updated_at: string;
   employee?: Pick<Profile, 'id' | 'full_name' | 'profile_picture_url'>;
+}
+
+export interface TaskWatcher {
+  id: string;
+  task_id: string;
+  employee_id: string;
+  created_at: string;
+  employee?: Pick<Profile, 'id' | 'full_name' | 'profile_picture_url'>;
+}
+
+export interface TaskWorkLog {
+  id: string;
+  task_id: string;
+  employee_id: string;
+  log_date: string;
+  hours: number;
+  description: string | null;
+  is_billable: boolean;
+  created_at: string;
+  updated_at: string;
+  employee?: Pick<Profile, 'id' | 'full_name'>;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string | null;
+  department: string | null;
+  status: ProjectStatus;
+  start_date: string | null;
+  end_date: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  creator?: Pick<Profile, 'id' | 'full_name'>;
+}
+
+export interface Sprint {
+  id: string;
+  project_id: string;
+  name: string;
+  status: SprintStatus;
+  start_date: string | null;
+  end_date: string | null;
+  goal: string | null;
+  created_at: string;
+  updated_at: string;
+  project?: Pick<Project, 'id' | 'name'>;
 }
 
 export interface TaskComment {
@@ -322,6 +395,24 @@ export interface Notification {
   created_at: string;
 }
 
+export interface ShiftTemplate {
+  id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  color: string;
+  days: number[];
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecurrencePattern {
+  frequency: 'weekly' | 'biweekly';
+  days: number[];
+  end_date?: string;
+}
+
 // ─── Dashboard Summary Types ──────────────────
 
 export interface FounderDashboardStats {
@@ -475,12 +566,50 @@ export const PRIORITY_COLORS: Record<TaskPriority, string> = {
   urgent: 'bg-red-100 text-red-700',
 };
 
+export const TASK_STATUS_COLORS: Record<TaskStatus, string> = {
+  todo: 'bg-slate-100 text-slate-700',
+  in_progress: 'bg-blue-100 text-blue-700',
+  in_review: 'bg-purple-100 text-purple-700',
+  approved: 'bg-green-100 text-green-700',
+  rejected: 'bg-red-100 text-red-700',
+  completed: 'bg-emerald-100 text-emerald-700',
+  blocked: 'bg-red-100 text-red-700',
+};
+
 export const MOOD_EMOJIS: Record<Mood, string> = {
   terrible: '😔',
   bad: '😐',
   neutral: '🙂',
   good: '😊',
   great: '🔥',
+};
+
+export const QUALITY_FLAG_LABELS: Record<string, string> = {
+  clean: 'Clean',
+  needs_rework: 'Needs Rework',
+  blocked_quality: 'Blocked (Quality)',
+  approved_with_comments: 'Approved with Comments',
+};
+
+export const QUALITY_FLAG_COLORS: Record<string, string> = {
+  clean: 'bg-green-100 text-green-700',
+  needs_rework: 'bg-yellow-100 text-yellow-700',
+  blocked_quality: 'bg-red-100 text-red-700',
+  approved_with_comments: 'bg-blue-100 text-blue-700',
+};
+
+export const PROJECT_STATUS_COLORS: Record<ProjectStatus, string> = {
+  active: 'bg-green-100 text-green-700',
+  completed: 'bg-blue-100 text-blue-700',
+  paused: 'bg-yellow-100 text-yellow-700',
+  archived: 'bg-gray-100 text-gray-700',
+};
+
+export const SPRINT_STATUS_COLORS: Record<SprintStatus, string> = {
+  planned: 'bg-slate-100 text-slate-700',
+  active: 'bg-green-100 text-green-700',
+  completed: 'bg-blue-100 text-blue-700',
+  cancelled: 'bg-red-100 text-red-700',
 };
 
 export type HrDocumentType =
@@ -623,4 +752,69 @@ export interface SalaryRecord {
   // Joined
   employee?: Pick<Profile, 'id' | 'full_name' | 'designation' | 'department'>;
   creator?: Pick<Profile, 'id' | 'full_name'>;
+}
+
+// ─── Task Approval / Work Log / Watcher Payloads ────
+
+export interface TaskApprovalPayload {
+  task_id: string;
+  approved: boolean;
+  approval_notes?: string;
+  quality_flag?: QualityFlag;
+}
+
+export interface TaskWorkLogPayload {
+  task_id: string;
+  hours: number;
+  log_date?: string;
+  description?: string;
+  is_billable?: boolean;
+}
+
+export interface TaskWatcherPayload {
+  task_id: string;
+  employee_id: string;
+}
+
+// ─── Task Analytics Types ────────────────────────────
+
+export interface TaskAnalytics {
+  total_tasks: number;
+  completed_tasks: number;
+  blocked_tasks: number;
+  overdue_tasks: number;
+  completion_rate: number;
+  avg_completion_hours: number | null;
+  avg_cycle_time_hours: number | null;
+  overdue_rate: number;
+  tasks_by_priority: Record<TaskPriority, number>;
+  tasks_by_status: Record<TaskStatus, number>;
+  tasks_by_employee: Array<{
+    employee_id: string;
+    employee_name: string;
+    total: number;
+    completed: number;
+    blocked: number;
+    overdue: number;
+    avg_hours: number | null;
+  }>;
+}
+
+export interface BurndownData {
+  date: string;
+  ideal_remaining: number;
+  actual_remaining: number;
+  completed: number;
+}
+
+export interface ExportOptions {
+  format: 'csv' | 'pdf';
+  filters?: {
+    status?: string;
+    priority?: string;
+    department?: string;
+    assigned_to?: string;
+    date_from?: string;
+    date_to?: string;
+  };
 }

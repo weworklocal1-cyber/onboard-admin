@@ -40,3 +40,5 @@ coverage/
 # Production environment file (may contain real secrets)
 .env
 
+
+.env.local

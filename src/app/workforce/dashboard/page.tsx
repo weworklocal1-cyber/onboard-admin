@@ -21,6 +21,8 @@ import {
   ClipboardList,
   Award,
   BookOpen,
+  Calendar,
+  Receipt,
 } from "lucide-react";
 
 import { Task, Attendance, DailyUpdate, PRIORITY_COLORS } from "@/types/workforce";
@@ -394,6 +396,9 @@ function EmployeeDashboardView({ profile }: { profile: any }) {
   const [attendance, setAttendance] = useState<Attendance | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [dailyUpdate, setDailyUpdate] = useState<DailyUpdate | null>(null);
+  const [leaveBalance, setLeaveBalance] = useState({ casual: 0, sick: 0, earned: 0 });
+  const [pendingLeaves, setPendingLeaves] = useState(0);
+  const [pendingExpenses, setPendingExpenses] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -405,15 +410,29 @@ function EmployeeDashboardView({ profile }: { profile: any }) {
           { data: attData },
           { data: taskData },
           { data: updateData },
+          { data: leaveBalData },
+          { data: pendingLeaveData },
+          { data: pendingExpData },
         ] = await Promise.all([
           supabase.from("attendance").select("*").eq("employee_id", profile.id).eq("date", todayStr).maybeSingle(),
-          supabase.from("tasks").select("*").eq("assigned_to", profile.id).neq("status", "completed").order("priority", { ascending: false }).limit(3),
+          supabase.from("tasks").select("*").eq("assigned_to", profile.id).neq("status", "completed").order("priority", { ascending: false }).limit(5),
           supabase.from("daily_updates").select("*").eq("employee_id", profile.id).eq("date", todayStr).maybeSingle(),
+          supabase.from("leave_balances").select("leave_type, total_allocated, used, remaining").eq("employee_id", profile.id),
+          supabase.from("leave_requests").select("id", { count: "exact", head: true }).eq("employee_id", profile.id).eq("status", "pending"),
+          supabase.from("expenses").select("id", { count: "exact", head: true }).eq("employee_id", profile.id).eq("status", "pending"),
         ]);
 
+        const leaveBal = (leaveBalData || []) as Array<{ leave_type: string; remaining: number }>;
         setAttendance(attData as Attendance);
         setTasks(taskData || []);
         setDailyUpdate(updateData as DailyUpdate);
+        setLeaveBalance({
+          casual: leaveBal.find(l => l.leave_type === "casual")?.remaining || 0,
+          sick: leaveBal.find(l => l.leave_type === "sick")?.remaining || 0,
+          earned: leaveBal.find(l => l.leave_type === "earned")?.remaining || 0,
+        });
+        setPendingLeaves(pendingLeaveData?.length || 0);
+        setPendingExpenses(pendingExpData?.length || 0);
       } catch (err: any) {
         console.error("Employee dashboard load error:", err.message);
       } finally {
@@ -424,91 +443,227 @@ function EmployeeDashboardView({ profile }: { profile: any }) {
     fetchEmployeeData();
   }, [profile, supabase]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[300px]">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
-      </div>
-    );
-  }
+  const todayFormatted = format(new Date(), "EEEE, MMMM d, yyyy");
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">Workforce Dashboard</h1>
-        <p className="text-gray-500">Welcome back, {profile.full_name}. Here is your task outline for today.</p>
+      {/* Welcome Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">
+            My Workspace
+          </h1>
+          <p className="text-gray-500 mt-1">
+            Welcome back, <span className="font-semibold text-gray-900">{profile.full_name}</span>. Here is your overview for {todayFormatted}.
+          </p>
+        </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
+      {/* Quick Actions */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Link href="/workforce/attendance">
+          <Card className="border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                <ClipboardList className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Attendance</p>
+                <p className="text-xs text-gray-500">Clock in / out</p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/workforce/leaves">
+          <Card className="border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center">
+                <Calendar className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Apply Leave</p>
+                <p className="text-xs text-gray-500">Request time off</p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/workforce/expenses">
+          <Card className="border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
+                <Receipt className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Expenses</p>
+                <p className="text-xs text-gray-500">Submit claim</p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        {profile.role === 'team_lead' || profile.role === 'hr_admin' || profile.role === 'super_admin' || profile.role === 'founder' ? (
+          <Link href="/workforce/approvals">
+            <Card className="border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer border-amber-200 bg-amber-50/30">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center">
+                  <ClipboardList className="h-5 w-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Approvals</p>
+                  <p className="text-xs text-gray-500">Review requests</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        ) : (
+          <Link href="/workforce/tasks">
+            <Card className="border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
+                  <CheckCircle2 className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">My Tasks</p>
+                  <p className="text-xs text-gray-500">View assignments</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card className="border-gray-200 shadow-sm">
+          <CardContent className="p-4">
+            <p className="text-xs text-gray-500">Active Tasks</p>
+            <p className="text-2xl font-bold text-gray-900">{tasks.length}</p>
+            <Link href="/workforce/tasks"><Button variant="link" className="p-0 h-auto text-xs text-brand-primary">View all →</Button></Link>
+          </CardContent>
+        </Card>
+        <Card className="border-gray-200 shadow-sm">
+          <CardContent className="p-4">
+            <p className="text-xs text-gray-500">Pending Leaves</p>
+            <p className="text-2xl font-bold text-amber-600">{pendingLeaves}</p>
+            {pendingLeaves > 0 && <Link href="/workforce/leaves"><Button variant="link" className="p-0 h-auto text-xs text-brand-primary">Review →</Button></Link>}
+          </CardContent>
+        </Card>
+        <Card className="border-gray-200 shadow-sm">
+          <CardContent className="p-4">
+            <p className="text-xs text-gray-500">Pending Expenses</p>
+            <p className="text-2xl font-bold text-green-600">{pendingExpenses}</p>
+            {pendingExpenses > 0 && <Link href="/workforce/expenses"><Button variant="link" className="p-0 h-auto text-xs text-brand-primary">Review →</Button></Link>}
+          </CardContent>
+        </Card>
+        <Card className="border-gray-200 shadow-sm">
+          <CardContent className="p-4">
+            <p className="text-xs text-gray-500">CL Balance</p>
+            <p className="text-2xl font-bold text-gray-900">{leaveBalance.casual}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-gray-200 shadow-sm">
+          <CardContent className="p-4">
+            <p className="text-xs text-gray-500">SL Balance</p>
+            <p className="text-2xl font-bold text-gray-900">{leaveBalance.sick}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-12">
+        <Card className="border-gray-200 shadow-sm md:col-span-4">
           <CardHeader>
             <CardTitle className="text-gray-800 text-lg flex items-center justify-between">
               <span>Today&apos;s Shift</span>
-              <Badge variant={attendance ? (attendance.status === "present" ? "success" : "warning") : "secondary"}>
+              <Badge variant={attendance ? (attendance.status === "present" || attendance.status === "wfh" ? "success" : "warning") : "secondary"}>
                 {attendance ? attendance.status : "Not Checked In"}
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             <p className="text-sm text-gray-600">
               {attendance 
-                ? `You checked in today at ${format(new Date(attendance.check_in_time!), "hh:mm a")}.`
-                : "You have not checked in for today&apos;s shift yet. Please record your location coordinates."}
+                ? attendance.check_in_time 
+                  ? `Checked in at ${format(new Date(attendance.check_in_time!), "hh:mm a")}`
+                  : "Shift active but no check-in time recorded."
+                : "You have not checked in for today. Please clock in to start your shift."}
             </p>
-            <Link href="/workforce/attendance"><Button className="w-full text-xs font-semibold">Go to Attendance Clock</Button></Link>
+            <Link href="/workforce/attendance">
+              <Button className="w-full text-xs font-semibold">
+                {attendance && attendance.check_out_time ? "View Shift" : "Go to Attendance"}
+              </Button>
+            </Link>
           </CardContent>
         </Card>
 
-        <Card className="border-gray-200 shadow-sm md:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-gray-800 text-lg flex items-center gap-2">
-              <ClipboardList className="h-5 w-5 text-brand-primary" /> Active Tasks ({tasks.length})
-            </CardTitle>
-            <CardDescription>Tasks requiring completion</CardDescription>
+        <Card className="border-gray-200 shadow-sm md:col-span-8">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-gray-800 text-lg flex items-center gap-2">
+                <ClipboardList className="h-5 w-5 text-brand-primary" /> Active Tasks ({tasks.length})
+              </CardTitle>
+              <CardDescription>Tasks assigned to you that are not yet completed</CardDescription>
+            </div>
+            <Link href="/workforce/tasks"><Button variant="outline" size="sm">View All</Button></Link>
           </CardHeader>
           <CardContent className="space-y-3">
             {tasks.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-6">🎉 No active tasks assigned to you. Enjoy!</p>
+              <p className="text-sm text-gray-500 text-center py-8">🎉 No active tasks. Enjoy your day!</p>
             ) : (
-              tasks.map((task) => (
-                <div key={task.id} className="flex justify-between items-center p-3 border border-gray-100 rounded-lg">
-                  <div>
-                    <h4 className="font-semibold text-sm text-gray-800">{task.title}</h4>
-                    {task.due_date && <p className="text-xs text-gray-500">📅 Due {task.due_date}</p>}
-                  </div>
-                  <Badge className={PRIORITY_COLORS[task.priority] || "bg-gray-100"}>
-                    {task.priority}
-                  </Badge>
-                </div>
-              ))
+              <div className="space-y-2">
+                {tasks.map((task) => {
+                  const isOverdue = task.due_date && task.due_date < format(new Date(), "yyyy-MM-dd") && task.status !== "completed";
+                  return (
+                    <Link key={task.id} href={`/workforce/tasks`} className="block">
+                      <div className={`flex justify-between items-center p-3 rounded-lg border transition-colors ${isOverdue ? "border-red-200 bg-red-50/50" : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"}`}>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-sm text-gray-800 truncate">{task.title}</h4>
+                          {task.due_date && (
+                            <p className={`text-xs mt-0.5 ${isOverdue ? "text-red-600 font-medium" : "text-gray-500"}`}>
+                              📅 Due {format(new Date(task.due_date), "MMM d")}
+                              {isOverdue && <span className="ml-1.5 text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-semibold uppercase">Overdue</span>}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 ml-3">
+                          <Badge className={`${PRIORITY_COLORS[task.priority] || "bg-gray-100"} text-[10px] font-medium`}>
+                            {task.priority}
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px] font-medium">
+                            {task.status.replace(/_/g, " ")}
+                          </Badge>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
             )}
-            <div className="pt-2">
-              <Link href="/workforce/tasks"><Button className="w-full text-xs font-semibold">Manage Tasks</Button></Link>
-            </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="border-gray-200 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-gray-800 text-lg">📝 Daily EOD Update</CardTitle>
-          <CardDescription>Submit your Daily updates before leaving shift</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <p className="text-sm text-gray-600">
-            {dailyUpdate 
-              ? "✅ You have submitted your end-of-day update report for today."
-              : "⚠️ You have not submitted your EOD update report yet. Please log your work output before checkout."}
-          </p>
-          <Link href="/workforce/daily-updates">
-            <Button variant={dailyUpdate ? "outline" : "default"}>
-              {dailyUpdate ? "View Submission" : "Submit Update"}
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="border-gray-200 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-gray-800 text-lg">📝 Daily EOD Update</CardTitle>
+            <CardDescription>Submit your Daily updates before leaving shift</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <p className="text-sm text-gray-600">
+              {dailyUpdate 
+                ? "✅ You have submitted your end-of-day update report for today."
+                : "⚠️ You have not submitted your EOD update report yet. Please log your work output before checkout."}
+            </p>
+            <Link href="/workforce/daily-updates">
+              <Button variant={dailyUpdate ? "outline" : "default"}>
+                {dailyUpdate ? "View Submission" : "Submit Update"}
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
 
-      <Card className="border-0 shadow-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+        <Card className="border-0 shadow-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
         <CardContent className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
@@ -535,62 +690,7 @@ function EmployeeDashboardView({ profile }: { profile: any }) {
           </div>
         </CardContent>
       </Card>
-
-      <Card className="border-0 shadow-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
-        <CardContent className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
-              <BookOpen className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold">WeWorkLocal Academy</h3>
-              <p className="text-sm text-white/80">
-                Complete the Understanding Local Commerce course to prepare for internships and earn your certificate.
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <a href="/academy/courses">
-              <button className="bg-white text-emerald-700 hover:bg-white/90 px-4 py-2 rounded-lg text-sm font-semibold">
-                Browse Certifications
-              </button>
-            </a>
-            <a href="/academy/dashboard">
-              <button className="bg-emerald-700 text-white hover:bg-emerald-800 px-4 py-2 rounded-lg text-sm font-semibold border border-white/30">
-                Open Academy
-              </button>
-            </a>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-0 shadow-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
-        <CardContent className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
-              <BookOpen className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold">WeWorkLocal Academy</h3>
-              <p className="text-sm text-white/80">
-                Complete the Understanding Local Commerce course to prepare for internships and earn your certificate.
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <a href="/academy/courses">
-              <button className="bg-white text-emerald-700 hover:bg-white/90 px-4 py-2 rounded-lg text-sm font-semibold">
-                Browse Certifications
-              </button>
-            </a>
-            <a href="/academy/dashboard">
-              <button className="bg-emerald-700 text-white hover:bg-emerald-800 px-4 py-2 rounded-lg text-sm font-semibold border border-white/30">
-                Open Academy
-              </button>
-            </a>
-          </div>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

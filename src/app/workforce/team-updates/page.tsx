@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
 import { MOOD_EMOJIS, Mood } from "@/types/workforce";
 import { toast } from "sonner";
+import { Trash2 } from "lucide-react";
 
 export default function TeamUpdatesPage() {
   const { profile, loading } = useAuth();
@@ -37,20 +39,17 @@ export default function TeamUpdatesPage() {
   const fetchTeamUpdates = async () => {
     setFetching(true);
     try {
-      // Get all team members (employees who report to the same manager)
-      const { data: teamMembers, error: teamError } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("reporting_manager_id", profile!.id)
-        .eq("status", "active");
+      const isAdmin = ['founder', 'super_admin', 'hr_admin'].includes(profile.role);
 
-      if (teamError) throw teamError;
-
-      const teamMemberIds = (teamMembers || []).map(m => m.id);
-      if (teamMemberIds.length === 0) {
-        setUpdates([]);
-        setFetching(false);
-        return;
+      let teamMemberIds: string[] = [];
+      if (!isAdmin) {
+        const { data: teamMembers, error: teamError } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("reporting_manager_id", profile!.id)
+          .eq("status", "active");
+        if (teamError) throw teamError;
+        teamMemberIds = (teamMembers || []).map((m: any) => m.id);
       }
 
       let query = supabase
@@ -59,9 +58,12 @@ export default function TeamUpdatesPage() {
           *,
           employee:profiles!employee_id(id, full_name, department, profile_picture_url)
         `)
-        .in("employee_id", teamMemberIds)
         .eq("date", filterDate)
         .order("submitted_at", { ascending: false });
+
+      if (!isAdmin) {
+        query = query.in("employee_id", teamMemberIds);
+      }
 
       if (showBlockersOnly) {
         query = query.eq("has_blocker", true);
@@ -78,6 +80,17 @@ export default function TeamUpdatesPage() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from("daily_updates").delete().eq("id", id);
+    if (error) {
+      toast.error("Failed to delete update");
+      return;
+    }
+    toast.success("Update deleted");
+    setUpdates(prev => prev.filter(u => u.id !== id));
+    fetchTeamUpdates();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -89,6 +102,7 @@ export default function TeamUpdatesPage() {
   if (!profile) return null;
 
   const isLeadOrAdmin = ['founder', 'super_admin', 'hr_admin', 'team_lead'].includes(profile.role);
+  const canDelete = ['founder', 'super_admin', 'hr_admin'].includes(profile.role);
 
   if (!isLeadOrAdmin) {
     return (
@@ -187,10 +201,22 @@ export default function TeamUpdatesPage() {
                       )}
                     </div>
 
-                    <p className="text-xs text-gray-400 mt-3">
-                      Submitted at {format(new Date(update.submitted_at), "hh:mm a")}
-                    </p>
-                  </div>
+                     <p className="text-xs text-gray-400 mt-3">
+                       Submitted at {format(new Date(update.submitted_at), "hh:mm a")}
+                     </p>
+                     {canDelete && (
+                       <div className="mt-3">
+                         <Button
+                           variant="destructive"
+                           size="sm"
+                           onClick={() => handleDelete(update.id)}
+                           className="gap-1.5"
+                         >
+                           <Trash2 className="h-3.5 w-3.5" /> Delete
+                         </Button>
+                       </div>
+                     )}
+                   </div>
                 </div>
               </CardContent>
             </Card>

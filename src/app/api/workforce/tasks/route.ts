@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { isLeadOrAbove } from "@/lib/permissions";
+import { sendTaskEmail } from "./email";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +97,25 @@ export async function POST(request: Request) {
     );
 
     await Promise.all(notificationPromises);
+
+    const assigneeEmails = await supabaseAdmin
+      .from("profiles")
+      .select("email, full_name")
+      .in("id", assigneeIds)
+      .not("email", "is", null);
+
+    const emailPromises = (assigneeEmails.data || []).map((assignee: any) =>
+      sendTaskEmail({
+        to: assignee.email,
+        subject: `New Task Assigned: ${title}`,
+        taskTitle: title,
+        taskId: task.id,
+        recipientName: assignee.full_name,
+        action: "assigned",
+      })
+    );
+
+    await Promise.all(emailPromises);
 
     // Send Teams notification
     const teamsWebhookUrl = process.env.TEAMS_WEBHOOK_URL;

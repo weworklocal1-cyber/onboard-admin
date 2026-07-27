@@ -4,13 +4,17 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { createClient } from "@/lib/supabase/client";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
+import { Calendar } from "lucide-react";
 
 interface AttendanceRecord {
   id?: string;
+  date?: string;
   check_in_time: string | null;
   check_out_time: string | null;
   check_in_lat: number | null;
@@ -23,12 +27,42 @@ interface AttendanceRecord {
   notes: string | null;
 }
 
+interface ShiftInfo {
+  id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  color: string;
+}
+
+interface WorkPreference {
+  preferred_shift_start: string | null;
+  preferred_shift_end: string | null;
+}
+
 export default function AttendancePage() {
   const { profile, loading } = useAuth();
   const supabase = createClient();
   const [record, setRecord] = useState<AttendanceRecord | null>(null);
   const [fetchingRecord, setFetchingRecord] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [tab, setTab] = useState<"today" | "history">("today");
+  const [history, setHistory] = useState<AttendanceRecord[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [genDate, setGenDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [adminRecords, setAdminRecords] = useState<any[]>([]);
+  const [loadingAdmin, setLoadingAdmin] = useState(false);
+  const [adminTab, setAdminTab] = useState<"team" | "all">("team");
+  const [adminStartDate, setAdminStartDate] = useState(format(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"));
+  const [adminEndDate, setAdminEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [adminEmployeeFilter, setAdminEmployeeFilter] = useState("");
+  const [employees, setEmployees] = useState<{ id: string; full_name: string; department: string | null }[]>([]);
+  const [shiftInfo, setShiftInfo] = useState<ShiftInfo | null>(null);
+  const [workPreference, setWorkPreference] = useState<WorkPreference | null>(null);
+  const [loadingShiftInfo, setLoadingShiftInfo] = useState(false);
+
+  const isAdmin = profile?.role && ["founder", "super_admin", "hr_admin", "team_lead"].includes(profile.role);
 
   const todayStr = format(new Date(), "yyyy-MM-dd");
 
@@ -55,7 +89,79 @@ export default function AttendancePage() {
     };
 
     fetchTodayRecord();
+    if (isAdmin) {
+      fetchEmployees();
+    }
+  }, [profile, supabase, todayStr, isAdmin]);
+
+  useEffect(() => {
+    if (!profile) return;
+    setLoadingShiftInfo(true);
+
+    async function loadShiftInfo() {
+      try {
+        const { data: assignment } = await supabase
+          .from("roster_assignments")
+          .select("shift:shifts(*)")
+          .eq("employee_id", profile!.id)
+          .eq("date", todayStr)
+          .maybeSingle();
+
+        if (assignment && (assignment as any).shift) {
+          setShiftInfo((assignment as any).shift as ShiftInfo);
+        } else {
+          setShiftInfo(null);
+        }
+
+        const { data: pref } = await supabase
+          .from("employee_work_preferences")
+          .select("preferred_shift_start, preferred_shift_end")
+          .eq("employee_id", profile!.id)
+          .maybeSingle();
+
+        setWorkPreference(pref as WorkPreference | null);
+      } catch (err: any) {
+        console.error("Error loading shift info:", err.message);
+      } finally {
+        setLoadingShiftInfo(false);
+      }
+    }
+
+    loadShiftInfo();
   }, [profile, supabase, todayStr]);
+
+  useEffect(() => {
+    if (tab !== "history" || !profile) return;
+
+    let active = true;
+    setLoadingHistory(true);
+
+    async function loadHistory() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch("/api/workforce/attendance/me?limit=50", {
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+        });
+
+        if (!res.ok) throw new Error("Failed to load history");
+
+        const data = await res.json();
+        if (active) {
+          setHistory(data.records || []);
+        }
+      } catch (err: any) {
+        toast.error(err.message || "Failed to load attendance history");
+      } finally {
+        if (active) setLoadingHistory(false);
+      }
+    }
+
+    loadHistory();
+
+    return () => {
+      active = false;
+    };
+  }, [tab, profile, supabase]);
 
   const getLocation = (): Promise<GeolocationCoordinates> => {
     return new Promise((resolve, reject) => {
@@ -84,9 +190,28 @@ export default function AttendancePage() {
       const coords = await getLocation();
       
       const now = new Date();
-      // Late threshold: 10:30 AM
-      const lateThreshold = new Date();
-      lateThreshold.setHours(10, 30, 0, 0);
+
+      let lateThreshold: Date;
+      let shiftDisplay = "General (10:00 AM - 7:00 PM)";
+      let graceMessage = "Grace time until 10:30 AM";
+
+      if (shiftInfo) {
+        const [startH, startM] = shiftInfo.start_time.split(":").map(Number);
+        lateThreshold = new Date();
+        lateThreshold.setHours(startH, startM + 15, 0, 0);
+        shiftDisplay = `${shiftInfo.name} (${formatTime(shiftInfo.start_time)} - ${formatTime(shiftInfo.end_time)})`;
+        graceMessage = `Grace time until ${format(new Date(lateThreshold), "hh:mm a")}`;
+      } else if (workPreference?.preferred_shift_start) {
+        const [startH, startM] = workPreference.preferred_shift_start.split(":").map(Number);
+        lateThreshold = new Date();
+        lateThreshold.setHours(startH, startM + 15, 0, 0);
+        shiftDisplay = `Preferred (${workPreference.preferred_shift_start} - ${workPreference.preferred_shift_end || "end"})`;
+        graceMessage = `Grace time until ${format(new Date(lateThreshold), "hh:mm a")}`;
+      } else {
+        lateThreshold = new Date();
+        lateThreshold.setHours(10, 30, 0, 0);
+      }
+
       const isLate = now > lateThreshold;
 
       const payload = {
@@ -149,6 +274,78 @@ export default function AttendancePage() {
     }
   };
 
+   const handleAutoGenerate = async () => {
+     if (!isAdmin) return;
+     setGenerating(true);
+     try {
+       const { data: { session } } = await supabase.auth.getSession();
+       const res = await fetch("/api/workforce/attendance/auto-generate", {
+         method: "POST",
+         headers: {
+           "Content-Type": "application/json",
+           Authorization: `Bearer ${session?.access_token}`,
+         },
+         body: JSON.stringify({ start_date: genDate, end_date: genDate }),
+       });
+
+       if (!res.ok) {
+         const err = await res.json().catch(() => ({}));
+         throw new Error(err.error || "Failed to generate attendance");
+       }
+
+       const data = await res.json();
+       toast.success(data.message || `Generated ${data.created} attendance records`);
+      } catch (err: any) {
+        toast.error(err.message || "Failed to generate attendance");
+      } finally {
+        setGenerating(false);
+      }
+    };
+
+  const fetchEmployees = async () => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, full_name, department")
+      .eq("status", "active")
+      .order("full_name");
+    setEmployees(data || []);
+  };
+
+  const fetchAdminAttendance = async () => {
+    if (!isAdmin) return;
+    setLoadingAdmin(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const params = new URLSearchParams();
+      if (adminStartDate) params.set("start_date", adminStartDate);
+      if (adminEndDate) params.set("end_date", adminEndDate);
+      if (adminEmployeeFilter) params.set("employee_id", adminEmployeeFilter);
+      params.set("limit", "100");
+
+      const res = await fetch(`/api/workforce/attendance/admin?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to load admin attendance");
+      }
+
+      const data = await res.json();
+      setAdminRecords(data.records || []);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load attendance");
+    } finally {
+      setLoadingAdmin(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAdmin && tab === "history") {
+      fetchAdminAttendance();
+    }
+  }, [isAdmin, tab, adminStartDate, adminEndDate, adminEmployeeFilter]);
+
   if (loading || fetchingRecord) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -164,12 +361,16 @@ export default function AttendancePage() {
   // Format Helper functions
   const formatTime = (isoString: string | null | undefined) => {
     if (!isoString) return "—";
-    return format(parseISO(isoString), "hh:mm a");
+    try {
+      return format(parseISO(isoString), "hh:mm a");
+    } catch {
+      return "—";
+    }
   };
 
-  const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" | "success" | "warning" }> = {
+  const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "success" | "warning" }> = {
     present: { label: "Present", variant: "success" },
-    absent: { label: "Absent", variant: "destructive" },
+    absent: { label: "Absent", variant: "warning" },
     half_day: { label: "Half Day", variant: "warning" },
     late: { label: "Late Arrival", variant: "warning" },
     wfh: { label: "WFH", variant: "outline" },
@@ -178,12 +379,57 @@ export default function AttendancePage() {
 
   const currentStatus = record ? statusMap[record.status] || { label: record.status, variant: "default" } : { label: "Not Checked In", variant: "secondary" };
 
+  const getGraceTimeString = (startTime: string): string => {
+    const [h, m] = startTime.split(":").map(Number);
+    const grace = new Date();
+    grace.setHours(h, m + 15, 0, 0);
+    return format(grace, "hh:mm a");
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Attendance Clock</h1>
-        <p className="text-gray-600">{todayFormatted}</p>
+        <h1 className="text-2xl font-bold">Attendance</h1>
+        <p className="text-gray-600">Track your daily check-ins and view history.</p>
       </div>
+
+      <div className="flex gap-2">
+        <Button
+          variant={tab === "today" ? "default" : "outline"}
+          onClick={() => setTab("today")}
+        >
+          Today
+        </Button>
+        <Button
+          variant={tab === "history" ? "default" : "outline"}
+          onClick={() => setTab("history")}
+        >
+          History
+        </Button>
+      </div>
+
+      {isAdmin && (
+        <Card className="border-dashed border-2">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Calendar className="h-5 w-5 text-brand-primary" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-gray-800">Auto-generate attendance from work preferences</p>
+                <p className="text-xs text-gray-500">Creates attendance records based on employee work preferences</p>
+              </div>
+              <Input
+                type="date"
+                value={genDate}
+                onChange={(e) => setGenDate(e.target.value)}
+                className="w-40 text-sm"
+              />
+              <Button onClick={handleAutoGenerate} disabled={generating} size="sm">
+                {generating ? "Generating..." : "Generate"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-gray-200 shadow-sm">
         <CardHeader className="border-b border-gray-100 pb-4">
@@ -224,8 +470,29 @@ export default function AttendancePage() {
             </div>
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 col-span-2 md:col-span-1">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Shift Rule</p>
-              <p className="text-base font-semibold text-gray-700">General (10:00 AM - 7:00 PM)</p>
-              <p className="text-xxs text-yellow-600 font-medium">Grace time until 10:30 AM</p>
+              {loadingShiftInfo ? (
+                <div className="space-y-2">
+                  <div className="h-4 bg-gray-200 rounded animate-pulse w-32" />
+                  <div className="h-3 bg-gray-200 rounded animate-pulse w-24" />
+                </div>
+              ) : (
+                <>
+                  <p className="text-base font-semibold text-gray-700">
+                    {shiftInfo
+                      ? `${shiftInfo.name} (${formatTime(shiftInfo.start_time)} - ${formatTime(shiftInfo.end_time)})`
+                      : workPreference?.preferred_shift_start
+                        ? `Preferred (${workPreference.preferred_shift_start} - ${workPreference.preferred_shift_end || "end"})`
+                        : "General (10:00 AM - 7:00 PM)"}
+                  </p>
+                  <p className="text-xxs text-yellow-600 font-medium">
+                    {shiftInfo
+                      ? `Grace time until ${getGraceTimeString(shiftInfo.start_time)}`
+                      : workPreference?.preferred_shift_start
+                        ? `Grace time until ${getGraceTimeString(workPreference.preferred_shift_start)}`
+                        : "Grace time until 10:30 AM"}
+                  </p>
+                </>
+              )}
             </div>
           </div>
 
@@ -254,6 +521,151 @@ export default function AttendancePage() {
           </div>
         </CardContent>
       </Card>
+
+      {tab === "history" && (
+        <Card className="border-gray-200 shadow-sm">
+          <CardHeader className="border-b border-gray-100 pb-4">
+            <CardTitle className="text-gray-800">
+              {isAdmin ? "Team Attendance History" : "Attendance History"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            {isAdmin && (
+              <div className="space-y-4 mb-6">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Employee</Label>
+                    <select
+                      className="w-full border rounded-md px-3 py-2 text-sm"
+                      value={adminEmployeeFilter}
+                      onChange={(e) => setAdminEmployeeFilter(e.target.value)}
+                    >
+                      <option value="">All Employees</option>
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.full_name} {emp.department ? `· ${emp.department}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">From</Label>
+                    <Input
+                      type="date"
+                      value={adminStartDate}
+                      onChange={(e) => setAdminStartDate(e.target.value)}
+                      className="text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">To</Label>
+                    <Input
+                      type="date"
+                      value={adminEndDate}
+                      onChange={(e) => setAdminEndDate(e.target.value)}
+                      className="text-sm"
+                    />
+                  </div>
+                  <div className="pt-5">
+                    <Button onClick={fetchAdminAttendance} disabled={loadingAdmin} size="sm">
+                      {loadingAdmin ? "Loading..." : "Apply Filter"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isAdmin ? (
+              loadingAdmin ? (
+                <div className="space-y-3">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="h-16 rounded-lg bg-gray-100 animate-pulse" />
+                  ))}
+                </div>
+              ) : adminRecords.length === 0 ? (
+                <p className="py-8 text-center text-sm text-gray-500">No attendance records found.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Employee</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Date</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Check In</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Check Out</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Hours</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adminRecords.map((r: any) => {
+                        const dateObj = r.date ? new Date(r.date + "T00:00:00") : null;
+                        const dateLabel = dateObj ? format(dateObj, "MMM d, yyyy") : "Unknown date";
+                        const statusInfo = statusMap[r.status] || { label: r.status, variant: "default" as const };
+                        const empName = r.employee?.full_name || "Unknown";
+                        const empDept = r.employee?.department || "";
+
+                        return (
+                          <tr key={r.id || `${r.employee_id}_${r.date}`} className="border-b border-gray-100 hover:bg-gray-50">
+                            <td className="py-3 px-4">
+                              <div>
+                                <p className="font-medium text-gray-900">{empName}</p>
+                                <p className="text-xs text-gray-500">{empDept}</p>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-gray-700">{dateLabel}</td>
+                            <td className="py-3 px-4 text-gray-700">{formatTime(r.check_in_time)}</td>
+                            <td className="py-3 px-4 text-gray-700">{formatTime(r.check_out_time)}</td>
+                            <td className="py-3 px-4 text-gray-700">{r.working_hours ?? 0} hrs</td>
+                            <td className="py-3 px-4">
+                              <Badge variant={statusInfo.variant} className="capitalize">
+                                {statusInfo.label}
+                              </Badge>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : loadingHistory ? (
+              <div className="space-y-3">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="h-12 rounded-lg bg-gray-100 animate-pulse" />
+                ))}
+              </div>
+            ) : history.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-500">No attendance records found.</p>
+            ) : (
+              <div className="space-y-3">
+                {history.map((r) => {
+                  const dateObj = r.date ? new Date(r.date + "T00:00:00") : null;
+                  const dateLabel = dateObj ? format(dateObj, "MMM d, yyyy") : "Unknown date";
+                  const statusInfo = statusMap[r.status] || { label: r.status, variant: "default" as const };
+
+                  return (
+                    <div
+                      key={r.id || r.date}
+                      className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{dateLabel}</p>
+                        <p className="text-xs text-gray-500">
+                          In: {formatTime(r.check_in_time)} • Out: {formatTime(r.check_out_time)} • {r.working_hours ?? 0} hrs
+                        </p>
+                      </div>
+                      <Badge variant={statusInfo.variant} className="capitalize">
+                        {statusInfo.label}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

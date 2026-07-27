@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/hooks/use-auth";
 import { createClient } from "@/lib/supabase/client";
 import { HrDocument, HrDocumentType, HR_DOCUMENT_LABELS } from "@/types/workforce";
 import { toast } from "sonner";
+import { Trash2 } from "lucide-react";
 
 const DOCUMENT_TYPES: HrDocumentType[] = [
   "offer_letter",
@@ -31,22 +32,41 @@ export default function HrDocumentsPage() {
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentType, setDocumentType] = useState<HrDocumentType>("offer_letter");
+  const [employeeId, setEmployeeId] = useState<string>("");
+  const [employees, setEmployees] = useState<{ id: string; full_name: string }[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const isHR = profile?.role === 'founder' || profile?.role === 'super_admin' || profile?.role === 'hr_admin' || profile?.role === 'team_lead';
 
   useEffect(() => {
     if (!profile) return;
 
-    const fetchDocuments = async () => {
-      let query = supabase.from("hr_documents").select(`*, employee:profiles!employee_id(full_name)`);
+    async function load() {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
 
-      if (profile.role !== "founder" && profile.role !== "super_admin" && profile.role !== "hr_admin") {
-        query = query.eq("employee_id", profile.id);
+      const res = await fetch("/api/workforce/hr-documents", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setDocuments(data.documents || []);
       }
 
-      const { data } = await query.order("created_at", { ascending: false });
-      setDocuments(data || []);
-    };
-    fetchDocuments();
-  }, [profile, supabase]);
+      if (isHR) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .eq("status", "active")
+          .order("full_name");
+        setEmployees(data || []);
+      }
+    }
+
+    load();
+  }, [profile, supabase, isHR]);
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,37 +74,68 @@ export default function HrDocumentsPage() {
 
     setUploading(true);
     try {
-      const fileName = `${profile.id}/${Date.now()}_${selectedFile.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from("employee-documents")
-        .upload(fileName, selectedFile);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("Not authenticated");
 
-      if (uploadError) throw uploadError;
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("document_type", documentType);
+      formData.append("employee_id", isHR && employeeId ? employeeId : profile.id);
 
-      const { data: urlData } = supabase.storage.from("employee-documents").getPublicUrl(fileName);
-
-      const { error: insertError } = await supabase.from("hr_documents").insert({
-        employee_id: profile.id,
-        document_type: documentType,
-        file_url: urlData.publicUrl,
-        file_name: selectedFile.name,
-        uploaded_by: profile.id,
+      const res = await fetch("/api/workforce/hr-documents", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
       });
 
-      if (insertError) throw insertError;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to upload document");
+      }
 
       toast.success("Document uploaded successfully!");
       setShowUploadModal(false);
       setSelectedFile(null);
+      setEmployeeId("");
 
-      const { data } = await supabase.from("hr_documents")
-        .select("*, employee:profiles!employee_id(full_name)")
-        .order("created_at", { ascending: false });
-      setDocuments(data || []);
+      const documentsRes = await fetch("/api/workforce/hr-documents", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (documentsRes.ok) {
+        const data = await documentsRes.json();
+        setDocuments(data.documents || []);
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to upload document");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleDelete = async (doc: HrDocument) => {
+    setDeletingId(doc.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("Not authenticated");
+
+      const res = await fetch(`/api/workforce/hr-documents/${doc.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to delete document");
+      }
+
+      toast.success("Document deleted");
+      setDocuments(documents.filter(d => d.id !== doc.id));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete document");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -101,7 +152,12 @@ export default function HrDocumentsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">HR Documents</h1>
+        <div>
+          <h1 className="text-2xl font-bold">HR Documents</h1>
+          <p className="text-sm text-gray-500">
+            {isHR ? "Manage employee documents" : "View your documents"}
+          </p>
+        </div>
         <Button onClick={() => setShowUploadModal(true)}>📄 Upload Document</Button>
       </div>
 
@@ -112,6 +168,22 @@ export default function HrDocumentsPage() {
               <h2 className="text-xl font-bold">Upload Document</h2>
             </div>
             <form onSubmit={handleUpload} className="p-6 space-y-4">
+              {isHR && (
+                <div className="space-y-1.5">
+                  <Label>Employee</Label>
+                  <select
+                    value={employeeId}
+                    onChange={e => setEmployeeId(e.target.value)}
+                    className="w-full rounded-lg border border-input bg-white px-3 py-2 text-sm"
+                    required
+                  >
+                    <option value="">Select employee</option>
+                    {employees.map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.full_name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label>Document Type</Label>
                 <select
@@ -155,11 +227,28 @@ export default function HrDocumentsPage() {
           documents.map(doc => (
             <Card key={doc.id}>
               <CardHeader>
-                <CardTitle className="text-sm">{doc.file_name}</CardTitle>
+                <CardTitle className="text-sm flex items-start justify-between gap-2">
+                  <span className="truncate">{doc.file_name}</span>
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Badge variant="outline">{HR_DOCUMENT_LABELS[doc.document_type]}</Badge>
-                <p className="text-xs text-gray-500">{doc.employee?.full_name}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <Badge variant="outline">{HR_DOCUMENT_LABELS[doc.document_type]}</Badge>
+                  {isHR && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-red-600 hover:text-red-700"
+                      onClick={() => handleDelete(doc)}
+                      disabled={deletingId === doc.id}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                {doc.employee?.full_name && (
+                  <p className="text-xs text-gray-500">{doc.employee.full_name}</p>
+                )}
                 <a href={doc.file_url} target="_blank" rel="noopener noreferrer">
                   <Button size="sm" variant="outline" className="w-full">
                     View Document
