@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rootId = searchParams.get("root_id");
 
-  let query = supabaseAdmin
+  const query = supabaseAdmin
     .from("profiles")
     .select(`
       id,

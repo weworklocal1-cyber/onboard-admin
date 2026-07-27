@@ -52,7 +52,7 @@ export async function GET(request: Request) {
       new Set((employees || []).map((e: any) => e.reporting_manager_id).filter(Boolean))
     );
 
-    let managerMap = new Map<string, { full_name: string; designation: string | null }>();
+    const managerMap = new Map<string, { full_name: string; designation: string | null }>();
     if (managerIds.length > 0) {
       const { data: managers } = await supabaseAdmin
         .from("profiles")

@@ -61,7 +61,7 @@ export async function GET(request: Request) {
     const records = data || [];
     const employeeIds = Array.from(new Set(records.map((r: any) => r.employee_id)));
 
-    let employeeMap = new Map<string, { full_name: string; department: string | null }>();
+    const employeeMap = new Map<string, { full_name: string; department: string | null }>();
     if (employeeIds.length > 0) {
       const { data: employees } = await supabaseAdmin
         .from("profiles")
