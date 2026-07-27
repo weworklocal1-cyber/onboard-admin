@@ -39,6 +39,7 @@ export default function TeamUpdatesPage() {
   const fetchTeamUpdates = async () => {
     setFetching(true);
     try {
+      if (!profile) return;
       const isAdmin = ['founder', 'super_admin', 'hr_admin'].includes(profile.role);
 
       let teamMemberIds: string[] = [];
