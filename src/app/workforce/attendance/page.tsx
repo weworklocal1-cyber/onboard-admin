@@ -10,7 +10,7 @@ import { useAuth } from "@/lib/hooks/use-auth";
 import { createClient } from "@/lib/supabase/client";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
-import { Calendar } from "lucide-react";
+import { Calendar, AlertCircle } from "lucide-react";
 
 interface AttendanceRecord {
   id?: string;
@@ -294,9 +294,37 @@ export default function AttendancePage() {
        }
 
        const data = await res.json();
-       toast.success(data.message || `Generated ${data.created} attendance records`);
+        toast.success(data.message || `Generated ${data.created} attendance records`);
       } catch (err: any) {
         toast.error(err.message || "Failed to generate attendance");
+      } finally {
+        setGenerating(false);
+      }
+    };
+
+    const handleAutoAbsent = async () => {
+      if (!isAdmin) return;
+      setGenerating(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch("/api/workforce/attendance/auto-absent", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({ date: genDate }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to mark absences");
+        }
+
+        const data = await res.json();
+        toast.success(data.message || `Marked ${data.marked} employees as absent`);
+      } catch (err: any) {
+        toast.error(err.message || "Failed to mark absences");
       } finally {
         setGenerating(false);
       }
@@ -425,6 +453,29 @@ export default function AttendancePage() {
               />
               <Button onClick={handleAutoGenerate} disabled={generating} size="sm">
                 {generating ? "Generating..." : "Generate"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isAdmin && (
+        <Card className="border-dashed border-2">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-red-500" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-gray-800">Mark absentees</p>
+                <p className="text-xs text-gray-500">Mark scheduled employees as absent if they didn&apos;t check in</p>
+              </div>
+              <Input
+                type="date"
+                value={genDate}
+                onChange={(e) => setGenDate(e.target.value)}
+                className="w-40 text-sm"
+              />
+              <Button onClick={handleAutoAbsent} disabled={generating} variant="destructive" size="sm">
+                {generating ? "Processing..." : "Mark Absent"}
               </Button>
             </div>
           </CardContent>
