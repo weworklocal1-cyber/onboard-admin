@@ -22,6 +22,8 @@ interface AttendanceRecord {
   check_out_lat: number | null;
   check_out_lng: number | null;
   working_hours: number | null;
+  break_deduction_hours: number | null;
+  net_working_hours: number | null;
   status: string;
   is_late: boolean;
   notes: string | null;
@@ -561,6 +563,17 @@ export default function AttendancePage() {
                   ? `${record.working_hours} hrs` 
                   : "—"}
               </p>
+              {record?.break_deduction_hours ? (
+                <p className="text-xxs text-gray-500">-{record.break_deduction_hours}h break deducted</p>
+              ) : null}
+            </div>
+            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 col-span-2 md:col-span-1">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Net Hours</p>
+              <p className="text-xl font-bold text-gray-800">
+                {record?.net_working_hours !== null && record?.net_working_hours !== undefined 
+                  ? `${record.net_working_hours} hrs` 
+                  : "—"}
+              </p>
             </div>
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 col-span-2 md:col-span-1">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Shift Rule</p>
@@ -688,6 +701,8 @@ export default function AttendancePage() {
                         <th className="text-left py-3 px-4 font-semibold text-gray-700">Check In</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-700">Check Out</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-700">Hours</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Break</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Net Hours</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
                         {isAdmin && <th className="text-right py-3 px-4 font-semibold text-gray-700">Actions</th>}
                       </tr>
@@ -712,6 +727,8 @@ export default function AttendancePage() {
                             <td className="py-3 px-4 text-gray-700">{formatTime(r.check_in_time)}</td>
                             <td className="py-3 px-4 text-gray-700">{formatTime(r.check_out_time)}</td>
                             <td className="py-3 px-4 text-gray-700">{r.working_hours ?? 0} hrs</td>
+                            <td className="py-3 px-4 text-gray-700">{r.break_deduction_hours ? `-${r.break_deduction_hours}h` : "—"}</td>
+                            <td className="py-3 px-4 text-gray-700 font-medium">{r.net_working_hours ?? "—"} hrs</td>
                             <td className="py-3 px-4">
                               <div className="flex flex-col gap-1">
                                 <Badge variant={statusInfo.variant as any} className="capitalize w-fit">
