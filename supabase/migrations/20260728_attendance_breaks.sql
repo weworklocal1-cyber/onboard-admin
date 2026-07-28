@@ -28,6 +28,12 @@ CREATE INDEX IF NOT EXISTS idx_attendance_breaks_employee_date ON attendance_bre
 
 ALTER TABLE attendance_breaks ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Employees can read own breaks" ON attendance_breaks;
+DROP POLICY IF EXISTS "Employees can insert own breaks" ON attendance_breaks;
+DROP POLICY IF EXISTS "Employees can update own breaks" ON attendance_breaks;
+DROP POLICY IF EXISTS "Employees can delete own breaks" ON attendance_breaks;
+DROP POLICY IF EXISTS "Admins can manage all breaks" ON attendance_breaks;
+
 CREATE POLICY "Employees can read own breaks"
   ON attendance_breaks FOR SELECT
   USING (auth.uid() = employee_id);
@@ -55,6 +61,7 @@ CREATE POLICY "Admins can manage all breaks"
     )
   );
 
+DROP TRIGGER IF EXISTS attendance_breaks_updated_at ON attendance_breaks;
 CREATE TRIGGER attendance_breaks_updated_at
   BEFORE UPDATE ON attendance_breaks
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
