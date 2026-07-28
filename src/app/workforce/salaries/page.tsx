@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { createClient } from "@/lib/supabase/client";
+import { format } from "date-fns";
 import { SalaryRecord, Profile, PaymentFrequency, SalaryStatus } from "@/types/workforce";
 import { toast } from "sonner";
 
@@ -19,6 +20,10 @@ export default function SalariesPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [selectedSalary, setSelectedSalary] = useState<SalaryRecord | null>(null);
+  const [calcEmployeeId, setCalcEmployeeId] = useState("");
+  const [calcMonth, setCalcMonth] = useState(format(new Date(), "yyyy-MM"));
+  const [calcResult, setCalcResult] = useState<any>(null);
+  const [calculating, setCalculating] = useState(false);
   const [form, setForm] = useState({
     employee_id: "",
     gross_salary: "",
@@ -128,6 +133,35 @@ export default function SalariesPage() {
     return gross - pf - pt - tds - other;
   };
 
+  const handleCalculateDeductions = async () => {
+    if (!calcEmployeeId || !calcMonth) {
+      toast.error("Please select employee and month");
+      return;
+    }
+    setCalculating(true);
+    setCalcResult(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const [year, month] = calcMonth.split("-");
+      const res = await fetch("/api/workforce/salaries/calculate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ employee_id: calcEmployeeId, month, year }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to calculate");
+      setCalcResult(data);
+      toast.success("Calculation complete");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to calculate deductions");
+    } finally {
+      setCalculating(false);
+    }
+  };
+
   const exportToCSV = () => {
     const headers = ["Employee", "Designation", "Department", "Gross Salary", "Net Salary", "Frequency", "Effective From", "Effective To", "Status"];
     const rows = salaries.map(s => [
@@ -198,6 +232,98 @@ export default function SalariesPage() {
             <SalaryCard key={salary.id} salary={salary} isAdmin={isAdmin} onViewPayslip={() => printPayslip(salary)} />
           ))}
         </div>
+      )}
+
+      {isAdmin && (
+        <Card className="border-dashed border-2">
+          <CardHeader>
+            <CardTitle className="text-lg">🧮 Attendance-Based Salary Calculator</CardTitle>
+            <CardDescription>Calculate attendance deductions for a given month</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <Label>Employee</Label>
+                <select
+                  value={calcEmployeeId}
+                  onChange={(e) => setCalcEmployeeId(e.target.value)}
+                  className="w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                >
+                  <option value="">Select employee</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>{emp.full_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Month</Label>
+                <Input
+                  type="month"
+                  value={calcMonth}
+                  onChange={(e) => setCalcMonth(e.target.value)}
+                  className="text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Action</Label>
+                <Button onClick={handleCalculateDeductions} disabled={calculating} className="w-full">
+                  {calculating ? "Calculating..." : "Calculate"}
+                </Button>
+              </div>
+            </div>
+
+            {calcResult && (
+              <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500">Gross Salary</p>
+                    <p className="text-lg font-bold">₹{Number(calcResult.gross_salary).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Fixed Deductions</p>
+                    <p className="text-lg font-bold text-red-600">-₹{Number(calcResult.fixed_deductions.total).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Attendance Deductions</p>
+                    <p className="text-lg font-bold text-red-600">-₹{Number(calcResult.attendance_deductions.total).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Net Salary</p>
+                    <p className="text-lg font-bold text-emerald-600">₹{Number(calcResult.net_salary).toLocaleString()}</p>
+                  </div>
+                </div>
+
+                <div className="border-t pt-3">
+                  <p className="text-sm font-semibold mb-2">Attendance Summary</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+                    <div>Working Days: <span className="font-semibold">{calcResult.attendance_summary.total_working_days}</span></div>
+                    <div>Present: <span className="font-semibold text-emerald-600">{calcResult.attendance_summary.present}</span></div>
+                    <div>Absent: <span className="font-semibold text-red-600">{calcResult.attendance_summary.absent}</span></div>
+                    <div>Late: <span className="font-semibold text-amber-600">{calcResult.attendance_summary.late}</span></div>
+                    <div>Half Day: <span className="font-semibold text-orange-600">{calcResult.attendance_summary.half_day}</span></div>
+                    <div>WFH: <span className="font-semibold text-blue-600">{calcResult.attendance_summary.wfh}</span></div>
+                    <div>On Leave: <span className="font-semibold text-purple-600">{calcResult.attendance_summary.on_leave}</span></div>
+                    <div>Daily Wage: <span className="font-semibold">₹{Number(calcResult.attendance_summary.daily_wage).toLocaleString()}</span></div>
+                  </div>
+                </div>
+
+                {calcResult.attendance_deductions.breakdown.length > 0 && (
+                  <div className="border-t pt-3">
+                    <p className="text-sm font-semibold mb-2">Deduction Breakdown</p>
+                    <div className="max-h-40 overflow-y-auto space-y-1">
+                      {calcResult.attendance_deductions.breakdown.map((item: any, idx: number) => (
+                        <div key={idx} className="flex justify-between text-xs bg-white p-2 rounded border">
+                          <span>{item.date} • {item.status}</span>
+                          <span className="font-semibold text-red-600">-₹{Number(item.deduction).toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {showAddModal && isAdmin && (
