@@ -2,7 +2,9 @@
 -- Attendance Breaks Table
 -- =============================================
 
-CREATE TABLE IF NOT EXISTS attendance_breaks (
+DROP TABLE IF EXISTS attendance_breaks CASCADE;
+
+CREATE TABLE attendance_breaks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   attendance_id UUID NOT NULL REFERENCES attendance(id) ON DELETE CASCADE,
   employee_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,

@@ -21,7 +21,7 @@ DECLARE
   net_hours NUMERIC(4,2);
 BEGIN
   IF NEW.check_in_time IS NOT NULL AND NEW.check_out_time IS NOT NULL THEN
-    raw_hours := ROUND(EXTRACT(EPOCH FROM (NEW.check_out_time - NEW.check_in_time)) / 3600.0, 2);
+    raw_hours := ROUND(DATE_PART('EPOCH', NEW.check_out_time - NEW.check_in_time) / 3600.0, 2);
 
     -- Look up shift start/end for this employee on this date
     SELECT s.start_time::time, s.end_time::time
@@ -39,7 +39,7 @@ BEGIN
       shift_end := '19:00:00'::TIME;
     END IF;
 
-    shift_duration_hours := EXTRACT(EPOCH FROM (shift_end - shift_start)) / 3600.0;
+    shift_duration_hours := DATE_PART('EPOCH', shift_end - shift_start) / 3600.0;
 
     -- Break deduction: 1 hour if shift > 6 hours
     IF shift_duration_hours > 6 THEN
@@ -47,7 +47,8 @@ BEGIN
     END IF;
 
     -- Look up actual break time from attendance_breaks table
-    SELECT COALESCE(SUM(EXTRACT(EPOCH FROM duration)), 0) / 60.0
+    -- duration is already stored in minutes
+    SELECT COALESCE(SUM(duration), 0) / 60.0
     INTO break_deduction
     FROM attendance_breaks
     WHERE attendance_id = NEW.id
@@ -75,7 +76,7 @@ BEGIN
       NEW.early_departure_minutes := 0;
     ELSIF shift_duration_hours > 0 AND NEW.check_out_time::TIME < shift_end THEN
       NEW.early_departure := TRUE;
-      NEW.early_departure_minutes := GREATEST(ROUND(EXTRACT(EPOCH FROM (shift_end - NEW.check_out_time::TIME)) / 60.0), 0);
+      NEW.early_departure_minutes := GREATEST(ROUND(DATE_PART('EPOCH', shift_end - NEW.check_out_time::TIME) / 60.0), 0);
     END IF;
   ELSE
     NEW.working_hours := 0;
