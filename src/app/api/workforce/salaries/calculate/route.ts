@@ -112,6 +112,7 @@ export async function POST(request: Request) {
     let halfDays = 0;
     let wfhDays = 0;
     let leaveDays = 0;
+    let earlyDepartureDays = 0;
     const dailyWage = totalWorkingDays > 0 ? Number(salaryData.gross_salary) / totalWorkingDays : 0;
 
     const attendanceBreakdown: Array<{
@@ -131,7 +132,15 @@ export async function POST(request: Request) {
       switch (status) {
         case "present":
           presentDays++;
-          note = "Full day present";
+          if (record?.early_departure) {
+            earlyDepartureDays++;
+            const earlyMins = record.early_departure_minutes || 0;
+            const earlyDeduction = dailyWage * 0.05;
+            deduction = Math.round(earlyDeduction * 100) / 100;
+            note = `Early departure (${earlyMins}m early) - 5% deduction (₹${deduction.toFixed(2)})`;
+          } else {
+            note = "Full day present";
+          }
           break;
         case "late":
           presentDays++;
@@ -201,6 +210,7 @@ export async function POST(request: Request) {
         half_day: halfDays,
         wfh: wfhDays,
         on_leave: leaveDays,
+        early_departure: earlyDepartureDays,
         daily_wage: Math.round(dailyWage * 100) / 100,
       },
       attendance_deductions: {

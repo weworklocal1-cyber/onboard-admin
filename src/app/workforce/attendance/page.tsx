@@ -24,6 +24,8 @@ interface AttendanceRecord {
   working_hours: number | null;
   break_deduction_hours: number | null;
   net_working_hours: number | null;
+  early_departure: boolean | null;
+  early_departure_minutes: number | null;
   status: string;
   is_late: boolean;
   notes: string | null;
@@ -703,6 +705,7 @@ export default function AttendancePage() {
                         <th className="text-left py-3 px-4 font-semibold text-gray-700">Hours</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-700">Break</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-700">Net Hours</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Early Departure</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
                         {isAdmin && <th className="text-right py-3 px-4 font-semibold text-gray-700">Actions</th>}
                       </tr>
@@ -729,6 +732,11 @@ export default function AttendancePage() {
                             <td className="py-3 px-4 text-gray-700">{r.working_hours ?? 0} hrs</td>
                             <td className="py-3 px-4 text-gray-700">{r.break_deduction_hours ? `-${r.break_deduction_hours}h` : "—"}</td>
                             <td className="py-3 px-4 text-gray-700 font-medium">{r.net_working_hours ?? "—"} hrs</td>
+                            <td className="py-3 px-4 text-gray-700">
+                              {r.early_departure ? (
+                                <span className="text-xs font-medium text-red-600">-{r.early_departure_minutes}m</span>
+                              ) : "—"}
+                            </td>
                             <td className="py-3 px-4">
                               <div className="flex flex-col gap-1">
                                 <Badge variant={statusInfo.variant as any} className="capitalize w-fit">

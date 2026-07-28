@@ -303,6 +303,7 @@ export default function SalariesPage() {
                     <div>Half Day: <span className="font-semibold text-orange-600">{calcResult.attendance_summary.half_day}</span></div>
                     <div>WFH: <span className="font-semibold text-blue-600">{calcResult.attendance_summary.wfh}</span></div>
                     <div>On Leave: <span className="font-semibold text-purple-600">{calcResult.attendance_summary.on_leave}</span></div>
+                    <div>Early Departure: <span className="font-semibold text-red-600">{calcResult.attendance_summary.early_departure || 0}</span></div>
                     <div>Daily Wage: <span className="font-semibold">₹{Number(calcResult.attendance_summary.daily_wage).toLocaleString()}</span></div>
                   </div>
                 </div>
