@@ -414,8 +414,8 @@ export default function AttendancePage() {
             <div className="flex items-center gap-3">
               <Calendar className="h-5 w-5 text-brand-primary" />
               <div className="flex-1">
-                <p className="text-sm font-semibold text-gray-800">Auto-generate attendance from work preferences</p>
-                <p className="text-xs text-gray-500">Creates attendance records based on employee work preferences</p>
+                <p className="text-sm font-semibold text-gray-800">Auto-generate attendance from roster</p>
+                <p className="text-xs text-gray-500">Creates attendance records only for scheduled shifts</p>
               </div>
               <Input
                 type="date"

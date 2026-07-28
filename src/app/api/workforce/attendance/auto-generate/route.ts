@@ -20,19 +20,6 @@ function canManage(role: string) {
   return ['founder', 'super_admin', 'hr_admin', 'team_lead'].includes(role);
 }
 
-function getWorkingDates(startDate: Date, endDate: Date, workingDays: number[]): Date[] {
-  const dates: Date[] = [];
-  const current = new Date(startDate);
-  while (current <= endDate) {
-    const dayOfWeek = current.getDay();
-    if (workingDays.includes(dayOfWeek === 0 ? 7 : dayOfWeek)) {
-      dates.push(new Date(current));
-    }
-    current.setDate(current.getDate() + 1);
-  }
-  return dates;
-}
-
 export async function POST(request: Request) {
   const sessionUser = await getSessionUser(request);
   if (!sessionUser || !canManage(sessionUser.role)) {
@@ -76,34 +63,36 @@ export async function POST(request: Request) {
     }
 
     const employeeIds = employees.map((e) => e.id);
-    const { data: preferences } = await supabaseAdmin
-      .from("employee_work_preferences")
-      .select("employee_id, working_days")
+
+    const { data: rosterData } = await supabaseAdmin
+      .from("roster_assignments")
+      .select("employee_id, date")
+      .gte("date", start_date)
+      .lte("date", end_date)
       .in("employee_id", employeeIds);
 
-    const prefsMap = new Map<string, number[]>();
-    (preferences || []).forEach((p: any) => {
-      if (p.working_days && Array.isArray(p.working_days) && p.working_days.length > 0) {
-        prefsMap.set(p.employee_id, p.working_days);
+    const rosterMap = new Map<string, Set<string>>();
+    (rosterData || []).forEach((r: any) => {
+      if (!rosterMap.has(r.employee_id)) {
+        rosterMap.set(r.employee_id, new Set());
       }
+      rosterMap.get(r.employee_id)!.add(r.date);
     });
 
-    const existingQuery = supabaseAdmin
+    const { data: existing } = await supabaseAdmin
       .from("attendance")
       .select("employee_id, date")
       .gte("date", start_date)
       .lte("date", end_date)
       .in("employee_id", employeeIds);
 
-    const { data: existing } = await existingQuery;
     const existingSet = new Set((existing || []).map((r: any) => `${r.employee_id}_${r.date}`));
 
     const recordsToInsert: any[] = [];
     for (const emp of employees) {
-      const workingDays = prefsMap.get(emp.id) || [1, 2, 3, 4, 5];
-      const workingDates = getWorkingDates(start, end, workingDays);
-      for (const date of workingDates) {
-        const dateStr = date.toISOString().split("T")[0];
+      const dates = rosterMap.get(emp.id);
+      if (!dates || dates.size === 0) continue;
+      for (const dateStr of dates) {
         const key = `${emp.id}_${dateStr}`;
         if (!existingSet.has(key)) {
           recordsToInsert.push({
