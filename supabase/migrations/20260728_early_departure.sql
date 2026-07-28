@@ -19,7 +19,7 @@ DECLARE
   early_departure_mins INTEGER := 0;
 BEGIN
   IF NEW.check_in_time IS NOT NULL AND NEW.check_out_time IS NOT NULL THEN
-    raw_hours := ROUND(DATE_PART('EPOCH', NEW.check_out_time - NEW.check_in_time) / 3600.0, 2);
+    raw_hours := ROUND((DATE_PART('EPOCH', NEW.check_out_time - NEW.check_in_time) / 3600.0)::numeric, 2);
 
     -- Look up shift details for this employee on this date
     SELECT s.end_time::time

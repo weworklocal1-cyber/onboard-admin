@@ -199,6 +199,12 @@ export default function TasksPage() {
         },
         body: JSON.stringify({
           ...newTask,
+          assigned_to: undefined,
+          assignees: newTask.assigned_to === "__all__"
+            ? allEmployees
+                .filter(emp => !newTask.department || emp.department === newTask.department)
+                .map(emp => emp.id)
+            : [newTask.assigned_to],
           estimated_hours: newTask.estimated_hours ? parseFloat(newTask.estimated_hours) : null,
           tags: newTask.tags,
         }),
@@ -867,6 +873,7 @@ export default function TasksPage() {
                       required
                     >
                       <option value="">Select employee</option>
+                      <option value="__all__">All Employees</option>
                       {allEmployees
                         .filter(emp => !newTask.department || emp.department === newTask.department)
                         .map(emp => (

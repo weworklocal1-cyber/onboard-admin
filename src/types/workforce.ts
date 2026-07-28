@@ -231,6 +231,7 @@ export interface Sprint {
   id: string;
   project_id: string;
   name: string;
+  description: string | null;
   status: SprintStatus;
   start_date: string | null;
   end_date: string | null;

@@ -61,7 +61,7 @@ CREATE OR REPLACE FUNCTION calculate_break_duration()
 RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.start_time IS NOT NULL AND NEW.end_time IS NOT NULL THEN
-    NEW.duration := ROUND(DATE_PART('EPOCH', NEW.end_time - NEW.start_time) / 60.0, 2);
+    NEW.duration := ROUND((DATE_PART('EPOCH', NEW.end_time - NEW.start_time) / 60.0)::numeric, 2);
   ELSE
     NEW.duration := NULL;
   END IF;
