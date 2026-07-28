@@ -47,20 +47,16 @@ export async function POST(request: Request) {
 
     const { data: existingAttendance } = await supabaseAdmin
       .from("attendance")
-      .select("employee_id, check_in_time")
+      .select("employee_id")
       .eq("date", targetDate)
       .in("employee_id", employeeIds);
 
-    const checkedInIds = new Set(
-      (existingAttendance || [])
-        .filter((a: any) => a.check_in_time)
-        .map((a: any) => a.employee_id)
-    );
+    const existingIds = new Set((existingAttendance || []).map((a: any) => a.employee_id));
 
-    const absentEmployeeIds = employeeIds.filter((id: string) => !checkedInIds.has(id));
+    const absentEmployeeIds = employeeIds.filter((id: string) => !existingIds.has(id));
 
     if (absentEmployeeIds.length === 0) {
-      return NextResponse.json({ message: "All scheduled employees have checked in", marked: 0 });
+      return NextResponse.json({ message: "All scheduled employees already have attendance records", marked: 0 });
     }
 
     const recordsToInsert = absentEmployeeIds.map((employee_id: string) => ({
