@@ -34,51 +34,65 @@ export async function GET(request: Request) {
     const limit = Math.min(Number(searchParams.get("limit")) || 50, 100);
     const offset = Number(searchParams.get("offset")) || 0;
 
-    let query = supabaseAdmin
-      .from("attendance")
-      .select("*")
-      .order("date", { ascending: false })
-      .range(offset, offset + limit - 1);
+    let employeesQuery = supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, department, status, employment_type")
+      .eq("status", "active")
+      .order("full_name", { ascending: true });
 
     if (employeeId) {
-      query = query.eq("employee_id", employeeId);
+      employeesQuery = employeesQuery.eq("id", employeeId);
     }
 
+    const { data: employees, error: empError } = await employeesQuery;
+    if (empError) throw empError;
+
+    const employeeIds = (employees || []).map((e: any) => e.id);
+
+    let attendanceQuery = supabaseAdmin
+      .from("attendance")
+      .select("*")
+      .in("employee_id", employeeIds.length > 0 ? employeeIds : ["00000000-0000-0000-0000-000000000000"])
+      .order("date", { ascending: false });
+
     if (startDate) {
-      query = query.gte("date", startDate);
+      attendanceQuery = attendanceQuery.gte("date", startDate);
     }
 
     if (endDate) {
-      query = query.lte("date", endDate);
+      attendanceQuery = attendanceQuery.lte("date", endDate);
     }
 
-    const { data, error, count } = await query;
+    const { data: attendanceRecords, error: attError } = await attendanceQuery;
+    if (attError) throw attError;
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const attendanceMap = new Map<string, any[]>();
+    (attendanceRecords || []).forEach((record: any) => {
+      if (!attendanceMap.has(record.employee_id)) {
+        attendanceMap.set(record.employee_id, []);
+      }
+      attendanceMap.get(record.employee_id)!.push(record);
+    });
 
-    const records = data || [];
-    const employeeIds = Array.from(new Set(records.map((r: any) => r.employee_id)));
+    const enriched = (employees || []).map((emp: any) => {
+      const records = attendanceMap.get(emp.id) || [];
+      return {
+        ...emp,
+        attendance_records: records,
+        has_attendance: records.length > 0,
+      };
+    });
 
-    const employeeMap = new Map<string, { full_name: string; department: string | null }>();
-    if (employeeIds.length > 0) {
-      const { data: employees } = await supabaseAdmin
-        .from("profiles")
-        .select("id, full_name, department")
-        .in("id", employeeIds);
+    const total = enriched.length;
+    const paginated = enriched.slice(offset, offset + limit);
 
-      (employees || []).forEach((e: any) => {
-        employeeMap.set(e.id, { full_name: e.full_name, department: e.department });
-      });
-    }
-
-    const enriched = records.map((r: any) => ({
-      ...r,
-      employee: employeeMap.get(r.employee_id) || null,
-    }));
-
-    return NextResponse.json({ records: enriched, total: count ?? 0, limit, offset });
+    return NextResponse.json({ 
+      records: paginated, 
+      total, 
+      limit, 
+      offset,
+      date_range: startDate && endDate ? { start: startDate, end: endDate } : null,
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Failed to fetch attendance" }, { status: 500 });
   }

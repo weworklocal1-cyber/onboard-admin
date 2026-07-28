@@ -534,7 +534,43 @@ export default function AttendancePage() {
       }
 
       const data = await res.json();
-      setAdminRecords(data.records || []);
+      const employees = data.records || [];
+
+      const flattened: any[] = [];
+      employees.forEach((emp: any) => {
+        if (emp.attendance_records && emp.attendance_records.length > 0) {
+          emp.attendance_records.forEach((record: any) => {
+            flattened.push({
+              ...record,
+              employee: { full_name: emp.full_name, department: emp.department },
+            });
+          });
+        } else {
+          flattened.push({
+            id: `no-record-${emp.id}`,
+            employee_id: emp.id,
+            date: adminStartDate || adminEndDate || null,
+            check_in_time: null,
+            check_out_time: null,
+            working_hours: 0,
+            break_deduction_hours: 0,
+            net_working_hours: 0,
+            status: "absent",
+            is_late: false,
+            early_departure: false,
+            early_departure_minutes: 0,
+            employee: { full_name: emp.full_name, department: emp.department },
+          });
+        }
+      });
+
+      flattened.sort((a, b) => {
+        const nameA = a.employee?.full_name || "";
+        const nameB = b.employee?.full_name || "";
+        return nameA.localeCompare(nameB);
+      });
+
+      setAdminRecords(flattened);
     } catch (err: any) {
       toast.error(err.message || "Failed to load attendance");
     } finally {
