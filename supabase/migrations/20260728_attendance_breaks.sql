@@ -9,13 +9,7 @@ CREATE TABLE IF NOT EXISTS attendance_breaks (
   date DATE NOT NULL DEFAULT CURRENT_DATE,
   start_time TIMESTAMPTZ,
   end_time TIMESTAMPTZ,
-  duration DECIMAL(4,2) GENERATED ALWAYS AS (
-    CASE
-      WHEN start_time IS NOT NULL AND end_time IS NOT NULL
-      THEN ROUND(EXTRACT(EPOCH FROM (end_time - start_time)) / 60.0, 2)
-      ELSE NULL
-    END
-  ) STORED,
+  duration DECIMAL(4,2),
   break_type TEXT DEFAULT 'lunch',
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -60,6 +54,24 @@ CREATE POLICY "Admins can manage all breaks"
       AND role IN ('founder', 'super_admin', 'hr_admin', 'team_lead')
     )
   );
+
+CREATE OR REPLACE FUNCTION calculate_break_duration()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.start_time IS NOT NULL AND NEW.end_time IS NOT NULL THEN
+    NEW.duration := ROUND(DATE_PART('EPOCH', NEW.end_time - NEW.start_time) / 60.0, 2);
+  ELSE
+    NEW.duration := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS calculate_break_duration_trigger ON attendance_breaks;
+
+CREATE TRIGGER calculate_break_duration_trigger
+  BEFORE INSERT OR UPDATE OF start_time, end_time ON attendance_breaks
+  FOR EACH ROW EXECUTE FUNCTION calculate_break_duration();
 
 DROP TRIGGER IF EXISTS attendance_breaks_updated_at ON attendance_breaks;
 CREATE TRIGGER attendance_breaks_updated_at
