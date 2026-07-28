@@ -10,7 +10,7 @@ import { useAuth } from "@/lib/hooks/use-auth";
 import { createClient } from "@/lib/supabase/client";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
-import { Calendar, AlertCircle } from "lucide-react";
+import { Calendar, AlertCircle, MapPin, Plus, Edit, Trash2 } from "lucide-react";
 
 interface AttendanceRecord {
   id?: string;
@@ -70,6 +70,12 @@ export default function AttendancePage() {
   const [overrideStatus, setOverrideStatus] = useState<string>("");
   const [overrideReason, setOverrideReason] = useState("");
   const [savingOverride, setSavingOverride] = useState(false);
+  const [geofences, setGeofences] = useState<Array<{ id: string; name: string; address: string; latitude: number; longitude: number; radius_meters: number; is_active: boolean }>>([]);
+  const [loadingGeofences, setLoadingGeofences] = useState(false);
+  const [showGeofenceModal, setShowGeofenceModal] = useState(false);
+  const [savingGeofence, setSavingGeofence] = useState(false);
+  const [geofenceForm, setGeofenceForm] = useState({ name: "Office", address: "", latitude: "", longitude: "", radius_meters: 200, is_active: true });
+  const [editingGeofenceId, setEditingGeofenceId] = useState<string | null>(null);
 
   const isAdmin = profile?.role && ["founder", "super_admin", "hr_admin", "team_lead"].includes(profile.role);
 
@@ -192,12 +198,36 @@ export default function AttendancePage() {
     });
   };
 
+  const validateGeofence = async (lat: number, lng: number): Promise<boolean> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/workforce/attendance/geofence?lat=${lat}&lng=${lng}`, {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (!res.ok) return true;
+      const result = await res.json();
+      if (!result.allowed) {
+        toast.error(result.reason || "You are outside the office geofence");
+        return false;
+      }
+      return true;
+    } catch {
+      return true;
+    }
+  };
+
   const handleCheckIn = async () => {
     if (!profile) return;
     setSubmitting(true);
     try {
       const coords = await getLocation();
-      
+
+      const geofenceOk = await validateGeofence(coords.latitude, coords.longitude);
+      if (!geofenceOk) {
+        setSubmitting(false);
+        return;
+      }
+
       const now = new Date();
 
       let lateThreshold: Date;
@@ -255,6 +285,13 @@ export default function AttendancePage() {
     setSubmitting(true);
     try {
       const coords = await getLocation();
+
+      const geofenceOk = await validateGeofence(coords.latitude, coords.longitude);
+      if (!geofenceOk) {
+        setSubmitting(false);
+        return;
+      }
+
       const now = new Date();
 
       const payload = {
@@ -386,6 +423,96 @@ export default function AttendancePage() {
     setEmployees(data || []);
   };
 
+  const fetchGeofences = async () => {
+    setLoadingGeofences(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/workforce/attendance/geofence", {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGeofences(data.geofences || []);
+      }
+    } catch {
+      toast.error("Failed to load geofences");
+    } finally {
+      setLoadingGeofences(false);
+    }
+  };
+
+  const handleSaveGeofence = async () => {
+    if (!geofenceForm.latitude || !geofenceForm.longitude) {
+      toast.error("Latitude and longitude are required");
+      return;
+    }
+    setSavingGeofence(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const method = editingGeofenceId ? "PUT" : "POST";
+      const url = editingGeofenceId
+        ? `/api/workforce/attendance/geofence?id=${editingGeofenceId}`
+        : "/api/workforce/attendance/geofence";
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify(geofenceForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save geofence");
+      toast.success(editingGeofenceId ? "Geofence updated" : "Geofence created");
+      setShowGeofenceModal(false);
+      setEditingGeofenceId(null);
+      setGeofenceForm({ name: "Office", address: "", latitude: "", longitude: "", radius_meters: 200, is_active: true });
+      fetchGeofences();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save geofence");
+    } finally {
+      setSavingGeofence(false);
+    }
+  };
+
+  const handleDeleteGeofence = async (id: string) => {
+    if (!confirm("Delete this geofence?")) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/workforce/attendance/geofence?id=${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete geofence");
+      }
+      toast.success("Geofence deleted");
+      fetchGeofences();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete geofence");
+    }
+  };
+
+  const openCreateGeofence = () => {
+    setEditingGeofenceId(null);
+    setGeofenceForm({ name: "Office", address: "", latitude: "", longitude: "", radius_meters: 200, is_active: true });
+    setShowGeofenceModal(true);
+  };
+
+  const openEditGeofence = (g: typeof geofences[0]) => {
+    setEditingGeofenceId(g.id);
+    setGeofenceForm({
+      name: g.name,
+      address: g.address || "",
+      latitude: String(g.latitude),
+      longitude: String(g.longitude),
+      radius_meters: g.radius_meters,
+      is_active: g.is_active,
+    });
+    setShowGeofenceModal(true);
+  };
+
   const fetchAdminAttendance = async () => {
     if (!isAdmin) return;
     setLoadingAdmin(true);
@@ -420,6 +547,12 @@ export default function AttendancePage() {
       fetchAdminAttendance();
     }
   }, [isAdmin, tab, adminStartDate, adminEndDate, adminEmployeeFilter]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchGeofences();
+    }
+  }, [isAdmin]);
 
   if (loading || fetchingRecord) {
     return (
@@ -527,6 +660,151 @@ export default function AttendancePage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {isAdmin && (
+        <Card className="border-dashed border-2">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <MapPin className="h-5 w-5 text-brand-primary" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-gray-800">Office Geofence</p>
+                <p className="text-xs text-gray-500">Configure office location for check-in validation</p>
+              </div>
+              <Button size="sm" onClick={openCreateGeofence}>
+                <Plus className="h-4 w-4 mr-1" /> Add Geofence
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isAdmin && geofences.length > 0 && (
+        <Card className="border-gray-200 shadow-sm">
+          <CardHeader className="border-b border-gray-100 pb-4">
+            <CardTitle className="text-gray-800">Configured Geofences</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Name</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Address</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Latitude</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Longitude</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Radius</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
+                    <th className="text-right py-3 px-4 font-semibold text-gray-700">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {geofences.map((g) => (
+                    <tr key={g.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 px-4 font-medium text-gray-900">{g.name}</td>
+                      <td className="py-3 px-4 text-gray-700">{g.address || "—"}</td>
+                      <td className="py-3 px-4 text-gray-700">{Number(g.latitude).toFixed(6)}</td>
+                      <td className="py-3 px-4 text-gray-700">{Number(g.longitude).toFixed(6)}</td>
+                      <td className="py-3 px-4 text-gray-700">{g.radius_meters}m</td>
+                      <td className="py-3 px-4">
+                        <Badge variant={g.is_active ? "success" : "secondary"} className="capitalize">
+                          {g.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditGeofence(g)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600" onClick={() => handleDeleteGeofence(g.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {showGeofenceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold">{editingGeofenceId ? "Edit Geofence" : "New Geofence"}</h2>
+              <p className="text-xs text-gray-500 mt-1">Set the office location and allowed radius</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <Label>Name *</Label>
+                <Input
+                  value={geofenceForm.name}
+                  onChange={(e) => setGeofenceForm({ ...geofenceForm, name: e.target.value })}
+                  placeholder="e.g. Main Office"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Address</Label>
+                <Input
+                  value={geofenceForm.address}
+                  onChange={(e) => setGeofenceForm({ ...geofenceForm, address: e.target.value })}
+                  placeholder="Office address"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Latitude *</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    value={geofenceForm.latitude}
+                    onChange={(e) => setGeofenceForm({ ...geofenceForm, latitude: e.target.value })}
+                    placeholder="19.0760"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Longitude *</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    value={geofenceForm.longitude}
+                    onChange={(e) => setGeofenceForm({ ...geofenceForm, longitude: e.target.value })}
+                    placeholder="72.8777"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Radius (meters)</Label>
+                <Input
+                  type="number"
+                  value={geofenceForm.radius_meters}
+                  onChange={(e) => setGeofenceForm({ ...geofenceForm, radius_meters: Number(e.target.value) })}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="gfActive"
+                  checked={geofenceForm.is_active}
+                  onChange={(e) => setGeofenceForm({ ...geofenceForm, is_active: e.target.checked })}
+                  className="rounded border-gray-300"
+                />
+                <Label htmlFor="gfActive" className="cursor-pointer">Active</Label>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button onClick={handleSaveGeofence} className="flex-1" disabled={savingGeofence}>
+                  {savingGeofence ? "Saving..." : editingGeofenceId ? "Update" : "Create"}
+                </Button>
+                <Button variant="outline" onClick={() => { setShowGeofenceModal(false); setEditingGeofenceId(null); }}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       <Card className="border-gray-200 shadow-sm">
