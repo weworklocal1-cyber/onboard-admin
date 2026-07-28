@@ -54,7 +54,7 @@ CREATE TRIGGER trigger_attendance_geofences_updated_at
 
 -- Seed default office location (can be updated later)
 INSERT INTO attendance_geofences (name, address, latitude, longitude, radius_meters, is_active, created_by)
-SELECT 'Main Office', 'LocalWala Office', 19.0760, 72.8777, 200, TRUE, id
+SELECT 'Main Office', 'Madhapur, Hyderabad, Telangana, India - 500081', 17.448294, 78.391487, 200, TRUE, id
 FROM profiles
 WHERE role = 'founder'
 LIMIT 1
