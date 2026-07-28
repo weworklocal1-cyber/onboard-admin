@@ -294,6 +294,21 @@ export default function AttendancePage() {
 
       const now = new Date();
 
+      const existing = await supabase
+        .from("attendance")
+        .select("id")
+        .eq("employee_id", profile.id)
+        .eq("date", todayStr)
+        .maybeSingle();
+
+      if (existing.error) {
+        throw new Error(existing.error.message || "Unable to verify attendance record");
+      }
+
+      if (!existing.data) {
+        throw new Error("No attendance record found for today. Please check in first.");
+      }
+
       const payload = {
         check_out_time: now.toISOString(),
         check_out_lat: coords.latitude,
@@ -307,9 +322,17 @@ export default function AttendancePage() {
         .eq("employee_id", profile.id)
         .eq("date", todayStr)
         .select()
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Check-out update error:", error);
+        throw new Error(error.message || "Failed to update attendance");
+      }
+
+      if (!data) {
+        throw new Error("Check-out failed: attendance record not found after update");
+      }
+
       setRecord(data);
       toast.success("Checked out successfully! Working hours updated.");
     } catch (err: any) {
