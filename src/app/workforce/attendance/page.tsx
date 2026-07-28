@@ -61,6 +61,11 @@ export default function AttendancePage() {
   const [shiftInfo, setShiftInfo] = useState<ShiftInfo | null>(null);
   const [workPreference, setWorkPreference] = useState<WorkPreference | null>(null);
   const [loadingShiftInfo, setLoadingShiftInfo] = useState(false);
+  const [showOverrideModal, setShowOverrideModal] = useState(false);
+  const [overrideTargetId, setOverrideTargetId] = useState<string | null>(null);
+  const [overrideStatus, setOverrideStatus] = useState<string>("");
+  const [overrideReason, setOverrideReason] = useState("");
+  const [savingOverride, setSavingOverride] = useState(false);
 
   const isAdmin = profile?.role && ["founder", "super_admin", "hr_admin", "team_lead"].includes(profile.role);
 
@@ -327,6 +332,44 @@ export default function AttendancePage() {
         toast.error(err.message || "Failed to mark absences");
       } finally {
         setGenerating(false);
+      }
+    };
+
+    const openOverrideModal = (recordId: string, currentStatus: string) => {
+      setOverrideTargetId(recordId);
+      setOverrideStatus(currentStatus);
+      setOverrideReason("");
+      setShowOverrideModal(true);
+    };
+
+    const handleOverrideAttendance = async () => {
+      if (!overrideTargetId || !overrideStatus) return;
+      setSavingOverride(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`/api/workforce/attendance/${overrideTargetId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({ status: overrideStatus, reason: overrideReason }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to override attendance");
+        }
+
+        toast.success("Attendance overridden successfully");
+        setShowOverrideModal(false);
+        setOverrideTargetId(null);
+        setOverrideReason("");
+        fetchAdminAttendance();
+      } catch (err: any) {
+        toast.error(err.message || "Failed to override attendance");
+      } finally {
+        setSavingOverride(false);
       }
     };
 
@@ -646,6 +689,7 @@ export default function AttendancePage() {
                         <th className="text-left py-3 px-4 font-semibold text-gray-700">Check Out</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-700">Hours</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
+                        {isAdmin && <th className="text-right py-3 px-4 font-semibold text-gray-700">Actions</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -669,10 +713,27 @@ export default function AttendancePage() {
                             <td className="py-3 px-4 text-gray-700">{formatTime(r.check_out_time)}</td>
                             <td className="py-3 px-4 text-gray-700">{r.working_hours ?? 0} hrs</td>
                             <td className="py-3 px-4">
-                              <Badge variant={statusInfo.variant} className="capitalize">
-                                {statusInfo.label}
-                              </Badge>
+                              <div className="flex flex-col gap-1">
+                                <Badge variant={statusInfo.variant as any} className="capitalize w-fit">
+                                  {statusInfo.label}
+                                </Badge>
+                                {r.override_by && (
+                                  <span className="text-[10px] text-gray-400">Overridden</span>
+                                )}
+                              </div>
                             </td>
+                            {isAdmin && (
+                              <td className="py-3 px-4 text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 text-xs"
+                                  onClick={() => openOverrideModal(r.id, r.status)}
+                                >
+                                  Override
+                                </Button>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
@@ -716,6 +777,67 @@ export default function AttendancePage() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {showOverrideModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold">Override Attendance</h2>
+              <p className="text-xs text-gray-500 mt-1">Update status with a reason</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <Label>New Status *</Label>
+                <select
+                  value={overrideStatus}
+                  onChange={(e) => setOverrideStatus(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-white px-3 py-2 text-sm"
+                  required
+                >
+                  <option value="">Select status...</option>
+                  <option value="present">Present</option>
+                  <option value="absent">Absent</option>
+                  <option value="late">Late</option>
+                  <option value="half_day">Half Day</option>
+                  <option value="wfh">WFH</option>
+                  <option value="on_leave">On Leave</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Reason</Label>
+                <textarea
+                  value={overrideReason}
+                  onChange={(e) => setOverrideReason(e.target.value)}
+                  placeholder="Reason for override..."
+                  className="w-full rounded-lg border border-input bg-white px-3 py-2 text-sm"
+                  rows={3}
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button
+                  type="button"
+                  onClick={handleOverrideAttendance}
+                  className="flex-1"
+                  disabled={savingOverride || !overrideStatus}
+                >
+                  {savingOverride ? "Saving..." : "Save Override"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowOverrideModal(false);
+                    setOverrideTargetId(null);
+                    setOverrideReason("");
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
