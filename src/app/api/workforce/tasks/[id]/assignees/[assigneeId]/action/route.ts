@@ -74,7 +74,6 @@ export async function POST(
       return NextResponse.json({ error: "Assignee record not found" }, { status: 404 });
     }
 
-    let newTaskStatus = task.status;
     let newAssigneeStatus = assigneeRecord.status;
     let historyAction = "";
     let historyNotes = "";
@@ -82,12 +81,10 @@ export async function POST(
     switch (action) {
       case "accept":
         if (task.status === "todo") {
-          newTaskStatus = "in_progress";
           newAssigneeStatus = "in_progress";
           historyAction = "accepted";
           historyNotes = "Task accepted and started";
         } else if (task.status === "blocked") {
-          newTaskStatus = "in_progress";
           newAssigneeStatus = "in_progress";
           historyAction = "resumed";
           historyNotes = "Task resumed after being blocked";
@@ -100,7 +97,6 @@ export async function POST(
           return NextResponse.json({ error: "Task must be in progress to complete" }, { status: 400 });
         }
         newAssigneeStatus = "completed";
-        newTaskStatus = task.requires_approval ? "in_review" : "completed";
         historyAction = "completed";
         historyNotes = task.requires_approval ? "Task completed and sent for review" : "Task marked as complete";
         break;
@@ -109,7 +105,6 @@ export async function POST(
           return NextResponse.json({ error: "Task must be in progress to block" }, { status: 400 });
         }
         newAssigneeStatus = "blocked";
-        newTaskStatus = "blocked";
         historyAction = "blocked";
         historyNotes = blocker_reason ? `Task blocked: ${blocker_reason}` : "Task blocked";
         break;
@@ -118,7 +113,6 @@ export async function POST(
           return NextResponse.json({ error: "Task must be in progress to decline" }, { status: 400 });
         }
         newAssigneeStatus = "blocked";
-        newTaskStatus = "blocked";
         historyAction = "declined";
         historyNotes = blocker_reason ? `Task declined: ${blocker_reason}` : "Task declined";
         break;
@@ -137,6 +131,23 @@ export async function POST(
     if (assigneeUpdateError) {
       return NextResponse.json({ error: assigneeUpdateError.message }, { status: 500 });
     }
+
+    const { data: allAssignees, error: assigneesError } = await supabaseAdmin
+      .from("task_assignees")
+      .select("status")
+      .eq("task_id", taskId);
+
+    const statuses = (allAssignees || []).map((a: { status: string }) => a.status);
+    let derivedTaskStatus = task.status;
+    if (statuses.some((s: string) => s === "blocked")) {
+      derivedTaskStatus = "blocked";
+    } else if (statuses.every((s: string) => s === "completed")) {
+      derivedTaskStatus = task.requires_approval ? "in_review" : "completed";
+    } else if (statuses.some((s: string) => s === "in_progress")) {
+      derivedTaskStatus = "in_progress";
+    }
+
+    const newTaskStatus = derivedTaskStatus;
 
     const { data: updatedTask, error: taskUpdateError } = await supabaseAdmin
       .from("tasks")
