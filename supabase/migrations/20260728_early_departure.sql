@@ -19,7 +19,7 @@ DECLARE
   early_departure_mins INTEGER := 0;
 BEGIN
   IF NEW.check_in_time IS NOT NULL AND NEW.check_out_time IS NOT NULL THEN
-    raw_hours := ROUND(EXTRACT(EPOCH FROM (NEW.check_out_time - NEW.check_in_time)) / 3600.0, 2);
+    raw_hours := ROUND(DATE_PART('EPOCH', NEW.check_out_time - NEW.check_in_time) / 3600.0, 2);
 
     -- Look up shift details for this employee on this date
     SELECT s.end_time::time
@@ -31,7 +31,7 @@ BEGIN
     LIMIT 1;
 
     -- Look up shift duration
-    SELECT EXTRACT(EPOCH FROM (s.end_time::time - s.start_time::time)) / 3600.0
+    SELECT DATE_PART('EPOCH', (s.end_time::time - s.start_time::time)) / 3600.0
     INTO shift_duration_hours
     FROM roster_assignments ra
     JOIN shifts s ON s.id = ra.shift_id
@@ -48,9 +48,9 @@ BEGIN
       -- Convert check_out_time to time-only for comparison
       -- check_out_time is timestamptz, shift_end_time is time
       -- We need to compare just the time portion
-      IF EXTRACT(EPOCH FROM (NEW.check_out_time::time - shift_end_time)) < 0 THEN
+      IF DATE_PART('EPOCH', NEW.check_out_time::time - shift_end_time) < 0 THEN
         early_departure_flag := TRUE;
-        early_departure_mins := ABS(EXTRACT(EPOCH FROM (NEW.check_out_time::time - shift_end_time)) / 60)::INTEGER;
+        early_departure_mins := ABS(DATE_PART('EPOCH', NEW.check_out_time::time - shift_end_time) / 60)::INTEGER;
       END IF;
     END IF;
 

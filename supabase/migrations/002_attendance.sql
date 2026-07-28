@@ -14,13 +14,7 @@ CREATE TABLE IF NOT EXISTS attendance (
   check_out_lat DECIMAL(10,7),
   check_out_lng DECIMAL(10,7),
   -- Working hours auto-calculated
-  working_hours DECIMAL(4,2) GENERATED ALWAYS AS (
-    CASE
-      WHEN check_in_time IS NOT NULL AND check_out_time IS NOT NULL
-      THEN ROUND(EXTRACT(EPOCH FROM (check_out_time - check_in_time)) / 3600.0, 2)
-      ELSE NULL
-    END
-  ) STORED,
+  working_hours DECIMAL(4,2),
   status TEXT DEFAULT 'absent' CHECK (status IN (
     'present', 'absent', 'half_day', 'late', 'wfh', 'on_leave'
   )),

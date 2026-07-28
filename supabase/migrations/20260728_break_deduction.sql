@@ -22,10 +22,10 @@ DECLARE
   net_hours NUMERIC(4,2);
 BEGIN
   IF NEW.check_in_time IS NOT NULL AND NEW.check_out_time IS NOT NULL THEN
-    raw_hours := ROUND(EXTRACT(EPOCH FROM (NEW.check_out_time - NEW.check_in_time)) / 3600.0, 2);
+    raw_hours := ROUND(DATE_PART('EPOCH', NEW.check_out_time - NEW.check_in_time) / 3600.0, 2);
 
     -- Look up shift duration for this employee on this date
-    SELECT EXTRACT(EPOCH FROM (s.end_time::time - s.start_time::time)) / 3600.0
+    SELECT DATE_PART('EPOCH', (s.end_time::time - s.start_time::time)) / 3600.0
     INTO shift_duration_hours
     FROM roster_assignments ra
     JOIN shifts s ON s.id = ra.shift_id
@@ -70,9 +70,9 @@ DECLARE
 BEGIN
   FOR rec IN SELECT id, employee_id, date, check_in_time, check_out_time FROM attendance WHERE check_in_time IS NOT NULL AND check_out_time IS NOT NULL LOOP
     UPDATE attendance
-    SET working_hours = ROUND(EXTRACT(EPOCH FROM (rec.check_out_time - rec.check_in_time)) / 3600.0, 2),
+    SET working_hours = ROUND(DATE_PART('EPOCH', rec.check_out_time - rec.check_in_time) / 3600.0, 2),
         break_deduction_hours = 0,
-        net_working_hours = ROUND(EXTRACT(EPOCH FROM (rec.check_out_time - rec.check_in_time)) / 3600.0, 2)
+        net_working_hours = ROUND(DATE_PART('EPOCH', rec.check_out_time - rec.check_in_time) / 3600.0, 2)
     WHERE id = rec.id;
   END LOOP;
 END;
