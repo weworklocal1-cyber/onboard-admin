@@ -1699,14 +1699,27 @@ function TaskCard({ task, onEdit, onDelete, onRefresh, selectMode, isSelected, o
 
   return (
     <div className="p-3 border rounded-lg bg-white shadow-sm">
-      {selectMode && (
-        <div className="flex items-center justify-end mb-2">
+      <div className="flex items-center justify-between mb-2">
+        {selectMode && (
           <Checkbox
             checked={isSelected}
             onCheckedChange={() => onToggleTaskSelection?.(task.id)}
           />
-        </div>
-      )}
+        )}
+        {onView && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-brand-primary hover:text-brand-primary/80 ml-auto"
+            onClick={(e) => {
+              e.stopPropagation();
+              onView(task);
+            }}
+          >
+            Open Details
+          </Button>
+        )}
+      </div>
 
       <div 
         className={!canManageAll ? "cursor-pointer" : ""}
