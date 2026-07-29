@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { createClient } from "@/lib/supabase/client";
+import { format } from "date-fns";
 import { Task, TaskPriority, TaskStatus, Department, PRIORITY_COLORS, TASK_STATUS_COLORS, TaskComment, TaskWorkLog, TaskWatcher, TaskAssignee } from "@/types/workforce";
 import { toast } from "sonner";
 
@@ -31,6 +32,8 @@ export default function TasksPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [quickFilter, setQuickFilter] = useState<string>("all");
   const [newTask, setNewTask] = useState({
@@ -174,7 +177,7 @@ export default function TasksPage() {
     return () => { active = false; };
   }, []);
 
-  const handleAddTask = async (e: React.FormEvent) => {
+   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile || !newTask.title.trim()) {
       toast.error("Title is required");
@@ -188,6 +191,18 @@ export default function TasksPage() {
       toast.error("Please select an employee");
       return;
     }
+
+    const assignees = newTask.assigned_to === "__all__"
+      ? allEmployees
+          .filter(emp => !newTask.department || emp.department === newTask.department)
+          .map(emp => emp.id)
+      : [newTask.assigned_to];
+
+    if (assignees.length === 0) {
+      toast.error("No employees available to assign");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -200,11 +215,7 @@ export default function TasksPage() {
         body: JSON.stringify({
           ...newTask,
           assigned_to: undefined,
-          assignees: newTask.assigned_to === "__all__"
-            ? allEmployees
-                .filter(emp => !newTask.department || emp.department === newTask.department)
-                .map(emp => emp.id)
-            : [newTask.assigned_to],
+          assignees,
           estimated_hours: newTask.estimated_hours ? parseFloat(newTask.estimated_hours) : null,
           tags: newTask.tags,
         }),
@@ -752,6 +763,7 @@ export default function TasksPage() {
               selectMode={selectMode}
               selectedTaskIds={selectedTaskIds}
               onToggleTaskSelection={toggleTaskSelection}
+              onView={(task) => { setSelectedTask(task); setShowDetailModal(true); }}
             />
             <TaskColumn
               title="In Progress"
@@ -767,6 +779,7 @@ export default function TasksPage() {
               selectMode={selectMode}
               selectedTaskIds={selectedTaskIds}
               onToggleTaskSelection={toggleTaskSelection}
+              onView={(task) => { setSelectedTask(task); setShowDetailModal(true); }}
             />
             <TaskColumn
               title="Completed"
@@ -782,6 +795,7 @@ export default function TasksPage() {
               selectMode={selectMode}
               selectedTaskIds={selectedTaskIds}
               onToggleTaskSelection={toggleTaskSelection}
+              onView={(task) => { setSelectedTask(task); setShowDetailModal(true); }}
             />
             <TaskColumn
               title="Blocked"
@@ -797,6 +811,7 @@ export default function TasksPage() {
               selectMode={selectMode}
               selectedTaskIds={selectedTaskIds}
               onToggleTaskSelection={toggleTaskSelection}
+              onView={(task) => { setSelectedTask(task); setShowDetailModal(true); }}
             />
           </div>
         </DndContext>
@@ -1125,11 +1140,101 @@ export default function TasksPage() {
           </Card>
         </div>
       )}
+
+      {showDetailModal && selectedTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <div className="flex items-start justify-between gap-3">
+                <CardTitle className="text-lg leading-tight">{selectedTask.title}</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => setShowDetailModal(false)}
+                >
+                  ✕
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className={`${PRIORITY_COLORS[selectedTask.priority] || 'bg-gray-100 text-gray-700'} font-medium`}>
+                  {selectedTask.priority}
+                </Badge>
+                <Badge className={`${TASK_STATUS_COLORS[selectedTask.status] || 'bg-gray-100 text-gray-700'} font-medium`}>
+                  {selectedTask.status.replace(/_/g, ' ')}
+                </Badge>
+                {selectedTask.department && (
+                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                    {selectedTask.department}
+                  </span>
+                )}
+              </div>
+
+              {selectedTask.description && (
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Description</p>
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{selectedTask.description}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                {selectedTask.due_date && (
+                  <div>
+                    <p className="text-xs text-gray-500">Due Date</p>
+                    <p className="font-medium text-gray-900">{format(new Date(selectedTask.due_date), "MMM d, yyyy")}</p>
+                  </div>
+                )}
+                {selectedTask.estimated_hours && (
+                  <div>
+                    <p className="text-xs text-gray-500">Estimated Hours</p>
+                    <p className="font-medium text-gray-900">{selectedTask.estimated_hours}h</p>
+                  </div>
+                )}
+              </div>
+
+              {selectedTask.tags && selectedTask.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {selectedTask.tags.map((tag, idx) => (
+                    <span key={idx} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-[10px] rounded border border-blue-200">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {selectedTask.assignees && selectedTask.assignees.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Assigned To</p>
+                  {selectedTask.assignees.map((assignee) => (
+                    <div key={assignee.id} className="flex items-center gap-2 text-xs p-2 bg-gray-50 rounded-lg">
+                      <div className="w-6 h-6 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary font-bold text-[10px]">
+                        {assignee.employee?.full_name?.charAt(0) || "?"}
+                      </div>
+                      <span className="font-medium text-gray-900">{assignee.employee?.full_name}</span>
+                      {profile?.id === assignee.employee_id && (
+                        <span className="text-[10px] text-blue-600 font-semibold bg-blue-50 px-1.5 py-0.5 rounded">You</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex justify-end pt-2">
+                <Button variant="outline" onClick={() => setShowDetailModal(false)}>
+                  Close
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
 
-function TaskColumn({ title, tasks, onEdit, onDelete, onRefresh, selectMode, selectedTaskIds, onToggleTaskSelection }: {
+function TaskColumn({ title, tasks, onEdit, onDelete, onRefresh, selectMode, selectedTaskIds, onToggleTaskSelection, onView }: {
   title: string;
   tasks: Task[];
   onEdit?: (task: Task) => void;
@@ -1138,6 +1243,7 @@ function TaskColumn({ title, tasks, onEdit, onDelete, onRefresh, selectMode, sel
   selectMode?: boolean;
   selectedTaskIds?: Set<string>;
   onToggleTaskSelection?: (taskId: string) => void;
+  onView?: (task: Task) => void;
 }) {
   return (
     <Card data-column-title={title}>
@@ -1159,6 +1265,7 @@ function TaskColumn({ title, tasks, onEdit, onDelete, onRefresh, selectMode, sel
                 selectMode={selectMode}
                 isSelected={selectedTaskIds?.has(task.id) || false}
                 onToggleTaskSelection={onToggleTaskSelection}
+                onView={onView}
               />
             ))}
           </SortableContext>
@@ -1168,7 +1275,7 @@ function TaskColumn({ title, tasks, onEdit, onDelete, onRefresh, selectMode, sel
   );
 }
 
-function TaskCard({ task, onEdit, onDelete, onRefresh, selectMode, isSelected, onToggleTaskSelection }: {
+function TaskCard({ task, onEdit, onDelete, onRefresh, selectMode, isSelected, onToggleTaskSelection, onView }: {
   task: Task;
   onEdit?: (task: Task) => void;
   onDelete?: (taskId: string) => void;
@@ -1176,6 +1283,7 @@ function TaskCard({ task, onEdit, onDelete, onRefresh, selectMode, isSelected, o
   selectMode?: boolean;
   isSelected?: boolean;
   onToggleTaskSelection?: (taskId: string) => void;
+  onView?: (task: Task) => void;
 }) {
   const supabase = createClient();
   const { profile } = useAuth();
@@ -1600,111 +1708,138 @@ function TaskCard({ task, onEdit, onDelete, onRefresh, selectMode, isSelected, o
         </div>
       )}
 
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-sm text-gray-900 leading-tight">{task.title}</h4>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-[11px] text-gray-500">
-            <span className={priorityColor}>{task.priority}</span>
-            <span>•</span>
-            <Badge className={`${TASK_STATUS_COLORS[task.status] || 'bg-gray-100 text-gray-700'} text-[10px] font-medium px-2 py-0.5`}>
-              {task.status.replace(/_/g, ' ')}
-            </Badge>
-            {task.due_date && (
-              <>
-                <span>•</span>
-                <span className={isOverdue ? "text-red-600 font-medium" : isDueToday ? "text-amber-600 font-medium" : ""}>
-                  📅 Due {task.due_date}
-                </span>
-              </>
-            )}
-            {task.estimated_hours && (
-              <>
-                <span>•</span>
-                <span>Est {task.estimated_hours}h</span>
-              </>
-            )}
-            {task.actual_hours && (
-              <>
-                <span>•</span>
-                <span className={task.estimated_hours && task.actual_hours > task.estimated_hours ? "text-red-600 font-medium" : "text-green-600"}>
-                  Actual {task.actual_hours}h
-                </span>
-              </>
-            )}
+      <div 
+        className={!canManageAll ? "cursor-pointer" : ""}
+        onClick={() => !canManageAll && onView?.(task)}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <h4 className="font-semibold text-sm text-gray-900 leading-tight">{task.title}</h4>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-[11px] text-gray-500">
+              <span className={priorityColor}>{task.priority}</span>
+              <span>•</span>
+              <Badge className={`${TASK_STATUS_COLORS[task.status] || 'bg-gray-100 text-gray-700'} text-[10px] font-medium px-2 py-0.5`}>
+                {task.status.replace(/_/g, ' ')}
+              </Badge>
+              {task.due_date && (
+                <>
+                  <span>•</span>
+                  <span className={isOverdue ? "text-red-600 font-medium" : isDueToday ? "text-amber-600 font-medium" : ""}>
+                    📅 Due {task.due_date}
+                  </span>
+                </>
+              )}
+              {task.estimated_hours && (
+                <>
+                  <span>•</span>
+                  <span>Est {task.estimated_hours}h</span>
+                </>
+              )}
+              {task.actual_hours && (
+                <>
+                  <span>•</span>
+                  <span className={task.estimated_hours && task.actual_hours > task.estimated_hours ? "text-red-600 font-medium" : "text-green-600"}>
+                    Actual {task.actual_hours}h
+                  </span>
+                </>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {task.description && (
-        <p className="text-xs text-gray-600 mt-2 line-clamp-2">{task.description}</p>
-      )}
+        {task.description && (
+          <p className="text-xs text-gray-600 mt-2 line-clamp-2">{task.description}</p>
+        )}
 
-      {task.tags && task.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-2">
-          {task.tags.map((tag, idx) => (
-            <span key={idx} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-[10px] rounded border border-blue-200">
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
+        {task.tags && task.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {task.tags.map((tag, idx) => (
+              <span key={idx} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-[10px] rounded border border-blue-200">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
 
-      {task.assignees && task.assignees.length > 0 && (
-        <div className="mt-3 pt-2 border-t space-y-1.5">
-          <p className="text-[11px] font-semibold text-gray-700 uppercase tracking-wide">Assigned ({task.assignees.length})</p>
-          {task.assignees.map((assignee) => {
-            const isCurrentUser = profile?.id === assignee.employee_id;
-            const canUpdateStatus = isCurrentUser || ['founder', 'super_admin', 'hr_admin', 'team_lead'].includes(profile?.role || '');
+        {task.assignees && task.assignees.length > 0 && (
+          <div className="mt-3 pt-2 border-t space-y-1.5">
+            <p className="text-[11px] font-semibold text-gray-700 uppercase tracking-wide">Assigned ({task.assignees.length})</p>
+            {task.assignees.map((assignee) => {
+              const isCurrentUser = profile?.id === assignee.employee_id;
+              const canUpdateStatus = isCurrentUser || ['founder', 'super_admin', 'hr_admin', 'team_lead'].includes(profile?.role || '');
 
-            return (
-              <div key={assignee.id} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded-lg border border-gray-100">
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <div className="w-6 h-6 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary font-bold text-[10px] shrink-0">
-                    {assignee.employee?.full_name?.charAt(0) || "?"}
+              return (
+                <div key={assignee.id} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded-lg border border-gray-100">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className="w-6 h-6 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary font-bold text-[10px] shrink-0">
+                      {assignee.employee?.full_name?.charAt(0) || "?"}
+                    </div>
+                    <span className="truncate font-medium text-gray-900">{assignee.employee?.full_name}</span>
+                    {isCurrentUser && <span className="text-[10px] text-blue-600 font-semibold bg-blue-50 px-1.5 py-0.5 rounded">You</span>}
                   </div>
-                  <span className="truncate font-medium text-gray-900">{assignee.employee?.full_name}</span>
-                  {isCurrentUser && <span className="text-[10px] text-blue-600 font-semibold bg-blue-50 px-1.5 py-0.5 rounded">You</span>}
+                  <div className="shrink-0 ml-2">
+                    {canUpdateStatus ? (
+                      <select
+                        value={assignee.status}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={e => {
+                          e.stopPropagation();
+                          updateAssigneeStatus(assignee.employee_id, e.target.value);
+                        }}
+                        className="text-[11px] border border-gray-200 rounded-md px-1.5 py-1 bg-white font-medium cursor-pointer"
+                        disabled={updating}
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="blocked">Blocked</option>
+                      </select>
+                    ) : (
+                      <Badge
+                        className={`text-[10px] font-medium px-2 py-0.5 ${
+                          assignee.status === 'completed' ? 'bg-green-100 text-green-700' :
+                          assignee.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                          assignee.status === 'blocked' ? 'bg-red-100 text-red-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {assignee.status.replace(/_/g, ' ')}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
-                <div className="shrink-0 ml-2">
-                  {canUpdateStatus ? (
-                    <select
-                      value={assignee.status}
-                      onChange={e => {
-                        e.preventDefault();
-                        updateAssigneeStatus(assignee.employee_id, e.target.value);
-                      }}
-                      className="text-[11px] border border-gray-200 rounded-md px-1.5 py-1 bg-white font-medium cursor-pointer"
-                      disabled={updating}
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="in_progress">In Progress</option>
-                      <option value="completed">Completed</option>
-                      <option value="blocked">Blocked</option>
-                    </select>
-                  ) : (
-                    <Badge
-                      className={`text-[10px] font-medium px-2 py-0.5 ${
-                        assignee.status === 'completed' ? 'bg-green-100 text-green-700' :
-                        assignee.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                        assignee.status === 'blocked' ? 'bg-red-100 text-red-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}
-                    >
-                      {assignee.status.replace(/_/g, ' ')}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
 
-      {task.blocker_reason && (
-        <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-xs text-red-700 font-medium">🚫 {task.blocker_reason}</p>
-        </div>
-      )}
+        {task.blocker_reason && (
+          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-xs text-red-700 font-medium">🚫 {task.blocker_reason}</p>
+          </div>
+        )}
+
+        {task.quality_flag && (
+          <div className="mt-2">
+            <span className={`text-[10px] px-2 py-0.5 rounded-md font-medium ${
+              task.quality_flag === 'clean' ? 'bg-green-100 text-green-700' :
+              task.quality_flag === 'needs_rework' ? 'bg-yellow-100 text-yellow-700' :
+              task.quality_flag === 'blocked_quality' ? 'bg-red-100 text-red-700' :
+              'bg-blue-100 text-blue-700'
+            }`}>
+              Quality: {task.quality_flag.replace(/_/g, ' ')}
+            </span>
+          </div>
+        )}
+
+        {task.completion_notes && (
+          <div className="mt-2 p-2 bg-gray-50 border border-gray-200 rounded-md">
+            <p className="text-xs text-gray-600">
+              <span className="font-medium text-gray-700">Notes:</span> {task.completion_notes}
+            </p>
+          </div>
+        )}
+      </div>
 
       {task.quality_flag && (
         <div className="mt-2">
@@ -1729,7 +1864,7 @@ function TaskCard({ task, onEdit, onDelete, onRefresh, selectMode, isSelected, o
 
       {/* Employee Self-Service Actions */}
       {isMyTask() && (
-        <div className="mt-3 pt-3 border-t space-y-2">
+        <div className="mt-3 pt-3 border-t space-y-2" onClick={(e) => e.stopPropagation()}>
           {task.status === "todo" && (
             <Button size="sm" className="w-full bg-brand-primary hover:bg-brand-primary/90 font-medium" onClick={() => handleEmployeeAction("accept")} disabled={updating}>
               ✅ Accept Task
