@@ -7,7 +7,14 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
-import { CheckCircle2, Clock, AlertCircle, ClipboardList, ChevronRight } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  ClipboardList,
+  ChevronRight,
+  ExternalLink,
+} from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -19,6 +26,8 @@ export default function TeamsDashboardPage() {
   const [dailyUpdate, setDailyUpdate] = useState<any>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [showTaskModal, setShowTaskModal] = useState(false);
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -249,15 +258,16 @@ export default function TeamsDashboardPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {activeTasks.map((task) => (
+               {activeTasks.map((task) => (
                 <div
                   key={task.id}
-                  className={`p-4 rounded-lg border ${
+                  onClick={() => { setSelectedTask(task); setShowTaskModal(true); }}
+                  className={`p-4 rounded-lg border cursor-pointer transition hover:shadow-md ${
                     task.priority === "urgent"
-                      ? "bg-red-50 border-red-200"
+                      ? "bg-red-50 border-red-200 hover:border-red-300"
                       : task.priority === "high"
-                      ? "bg-orange-50 border-orange-200"
-                      : "bg-white border-gray-200"
+                      ? "bg-orange-50 border-orange-200 hover:border-orange-300"
+                      : "bg-white border-gray-200 hover:border-gray-300"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -294,7 +304,7 @@ export default function TeamsDashboardPage() {
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-2 shrink-0">
+                    <div className="flex flex-col gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                       {task.assignee_status === "todo" && (
                         <Button
                           size="sm"
@@ -345,19 +355,119 @@ export default function TeamsDashboardPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             {urgentTasks.map(task => (
-              <div key={task.id} className="text-sm p-3 bg-white rounded-lg border border-red-100">
-                <p className="font-medium text-gray-900">{task.title}</p>
-                {task.description && (
-                  <p className="text-xs text-gray-600 mt-1 line-clamp-2">{task.description}</p>
-                )}
-                <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                  {task.due_date && <span>📅 Due {format(new Date(task.due_date), "MMM d, yyyy")}</span>}
-                  {task.department && <span>• {task.department}</span>}
+              <div
+                key={task.id}
+                onClick={() => { setSelectedTask(task); setShowTaskModal(true); }}
+                className="text-sm p-3 bg-white rounded-lg border border-red-100 cursor-pointer hover:border-red-300 transition"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 truncate">{task.title}</p>
+                    {task.description && (
+                      <p className="text-xs text-gray-600 mt-1 line-clamp-2">{task.description}</p>
+                    )}
+                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                      {task.due_date && <span>📅 Due {format(new Date(task.due_date), "MMM d, yyyy")}</span>}
+                      {task.department && <span>• {task.department}</span>}
+                    </div>
+                  </div>
+                  <ExternalLink className="h-3 w-3 text-gray-400 shrink-0 mt-1" />
                 </div>
               </div>
             ))}
           </CardContent>
         </Card>
+      )}
+
+      {showTaskModal && selectedTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <div className="flex items-start justify-between gap-3">
+                <CardTitle className="text-lg leading-tight">{selectedTask.title}</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => setShowTaskModal(false)}
+                >
+                  ✕
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className={`${getPriorityColor(selectedTask.priority)} font-medium`}>
+                  {selectedTask.priority}
+                </Badge>
+                <Badge className={`${getStatusColor(selectedTask.assignee_status || selectedTask.status)} font-medium`}>
+                  {(selectedTask.assignee_status || selectedTask.status).replace(/_/g, " ")}
+                </Badge>
+                {selectedTask.department && (
+                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                    {selectedTask.department}
+                  </span>
+                )}
+              </div>
+
+              {selectedTask.description && (
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Description</p>
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{selectedTask.description}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                {selectedTask.due_date && (
+                  <div>
+                    <p className="text-xs text-gray-500">Due Date</p>
+                    <p className="font-medium text-gray-900">{format(new Date(selectedTask.due_date), "MMM d, yyyy")}</p>
+                  </div>
+                )}
+                {selectedTask.creator?.full_name && (
+                  <div>
+                    <p className="text-xs text-gray-500">Assigned By</p>
+                    <p className="font-medium text-gray-900">{selectedTask.creator.full_name}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                {selectedTask.assignee_status === "todo" && (
+                  <Button
+                    className="flex-1 bg-brand-primary hover:bg-brand-primary/90"
+                    onClick={() => { handleTaskAction(selectedTask.id, "accept"); setShowTaskModal(false); }}
+                    disabled={updatingTaskId === selectedTask.id}
+                  >
+                    {updatingTaskId === selectedTask.id ? "Updating..." : "✅ Accept Task"}
+                  </Button>
+                )}
+                {selectedTask.assignee_status === "in_progress" && (
+                  <>
+                    <Button
+                      className="flex-1 bg-green-600 hover:bg-green-700"
+                      onClick={() => { handleTaskAction(selectedTask.id, "complete"); setShowTaskModal(false); }}
+                      disabled={updatingTaskId === selectedTask.id}
+                    >
+                      {updatingTaskId === selectedTask.id ? "Updating..." : "✔ Mark Complete"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1 border-red-200 text-red-700 hover:bg-red-50"
+                      onClick={() => { handleTaskAction(selectedTask.id, "block"); setShowTaskModal(false); }}
+                      disabled={updatingTaskId === selectedTask.id}
+                    >
+                      Block
+                    </Button>
+                  </>
+                )}
+                <Button variant="outline" className="flex-1" onClick={() => setShowTaskModal(false)}>
+                  Close
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );
