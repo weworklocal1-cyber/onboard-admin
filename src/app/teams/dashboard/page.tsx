@@ -67,29 +67,54 @@ export default function TeamsDashboardPage() {
       const myTaskIds = (assignments || []).map((a) => a.task_id);
       const statusByTaskId = new Map((assignments || []).map((a) => [a.task_id, a]));
       
-      console.log('[TeamsDashboard] assignments:', assignments, 'taskIds:', myTaskIds);
+      console.log('[TeamsDashboard] task_assignees result:', { assignments, myTaskIds });
 
-      if (myTaskIds.length === 0) {
+      let taskRows: any[] = [];
+      if (myTaskIds.length > 0) {
+        const { data: rows, error: taskError } = await supabase
+          .from("tasks")
+          .select(`id, title, description, priority, due_date, status, department, created_at, created_by`)
+          .in("id", myTaskIds)
+          .order("created_at", { ascending: false });
+
+        if (taskError) throw taskError;
+        taskRows = rows || [];
+        console.log('[TeamsDashboard] tasks via task_assignees rows:', taskRows.length);
+      } else {
+        console.log('[TeamsDashboard] no task_assignee rows, falling back to tasks.assigned_to');
+      }
+
+      const { data: assignedDirectly } = await supabase
+        .from("tasks")
+        .select(`id, title, description, priority, due_date, status, department, created_at, created_by`)
+        .eq("assigned_to", profile.id)
+        .order("created_at", { ascending: false });
+
+      const directRows = assignedDirectly || [];
+      console.log('[TeamsDashboard] tasks via assigned_to fallback rows:', directRows.length);
+
+      const mergedMap = new Map<string, any>();
+      for (const t of taskRows) mergedMap.set(t.id, t);
+      for (const t of directRows) {
+        if (!mergedMap.has(t.id)) {
+          mergedMap.set(t.id, { ...t, _assignee_status: "todo" });
+        }
+      }
+
+      const combinedTaskRows = Array.from(mergedMap.values());
+      if (combinedTaskRows.length === 0) {
         setTasks([]);
         return;
       }
 
-      const { data: taskRows, error: taskError } = await supabase
-        .from("tasks")
-        .select(`id, title, description, priority, due_date, status, department, created_at, created_by`)
-        .in("id", myTaskIds)
-        .order("created_at", { ascending: false });
-
-      if (taskError) throw taskError;
-
       const { data: creators } = await supabase
         .from("profiles")
         .select("id, full_name")
-        .in("id", (taskRows || []).map((t: any) => t.created_by).filter(Boolean));
+        .in("id", combinedTaskRows.map((t: any) => t.created_by).filter(Boolean));
 
       const creatorById = new Map((creators || []).map((c: any) => [c.id, c]));
 
-      const mapped = (taskRows || [])
+      const mapped = combinedTaskRows
         .map((t: any) => {
           const assigneeRecord = statusByTaskId.get(t.id);
           return {
@@ -101,13 +126,13 @@ export default function TeamsDashboardPage() {
             status: t.status,
             department: t.department,
             created_at: t.created_at,
-            creator: assigneeRecord ? creatorById.get(t.created_by) || null : null,
-            assignee_status: assigneeRecord?.status || "pending",
+            creator: t.created_by ? creatorById.get(t.created_by) || null : null,
+            assignee_status: assigneeRecord?.status || t._assignee_status || "pending",
             completed_at: assigneeRecord?.completed_at || null,
           };
         });
 
-      console.log('[TeamsDashboard] mapped tasks:', mapped);
+      console.log('[TeamsDashboard] final mapped tasks:', mapped);
       setTasks(mapped);
     } catch (err: any) {
       console.error("Error fetching my tasks:", err.message);
