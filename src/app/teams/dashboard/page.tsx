@@ -56,45 +56,58 @@ export default function TeamsDashboardPage() {
   const fetchMyTasks = async () => {
     if (!profile?.id) return;
     try {
-      const { data: assignments, error } = await supabase
+      const { data: assignments, error: assigneeError } = await supabase
         .from("task_assignees")
-        .select(`
-          task_id,
-          status,
-          completed_at,
-          task:tasks(
-            id,
-            title,
-            description,
-            priority,
-            due_date,
-            status,
-            department,
-            created_at,
-            creator:profiles!created_by(full_name)
-          )
-        `)
+        .select("task_id, status, completed_at")
         .eq("employee_id", profile.id)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (assigneeError) throw assigneeError;
 
-      const mapped = (assignments || [])
-        .filter((a: any) => a.task)
-        .map((a: any) => ({
-          id: a.task.id,
-          title: a.task.title,
-          description: a.task.description,
-          priority: a.task.priority,
-          due_date: a.task.due_date,
-          status: a.task.status,
-          department: a.task.department,
-          created_at: a.task.created_at,
-          creator: a.task.creator,
-          assignee_status: a.status,
-          completed_at: a.completed_at,
-        }));
+      const myTaskIds = (assignments || []).map((a) => a.task_id);
+      const statusByTaskId = new Map((assignments || []).map((a) => [a.task_id, a]));
+      
+      console.log('[TeamsDashboard] assignments:', assignments, 'taskIds:', myTaskIds);
 
+      if (myTaskIds.length === 0) {
+        setTasks([]);
+        return;
+      }
+
+      const { data: taskRows, error: taskError } = await supabase
+        .from("tasks")
+        .select(`id, title, description, priority, due_date, status, department, created_at, created_by`)
+        .in("id", myTaskIds)
+        .order("created_at", { ascending: false });
+
+      if (taskError) throw taskError;
+
+      const { data: creators } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", (taskRows || []).map((t: any) => t.created_by).filter(Boolean));
+
+      const creatorById = new Map((creators || []).map((c: any) => [c.id, c]));
+
+      const mapped = (taskRows || [])
+        .map((t: any) => {
+          const assigneeRecord = statusByTaskId.get(t.id);
+          return {
+            id: t.id,
+            title: t.title,
+            description: t.description,
+            priority: t.priority,
+            due_date: t.due_date,
+            status: t.status,
+            department: t.department,
+            created_at: t.created_at,
+            creator: assigneeRecord ? creatorById.get(t.created_by) || null : null,
+            assignee_status: assigneeRecord?.status || "pending",
+            completed_at: assigneeRecord?.completed_at || null,
+          };
+        });
+
+      console.log('[TeamsDashboard] mapped tasks:', mapped);
       setTasks(mapped);
     } catch (err: any) {
       console.error("Error fetching my tasks:", err.message);
@@ -255,6 +268,7 @@ export default function TeamsDashboardPage() {
               <p className="text-4xl mb-2">🎉</p>
               <p className="font-medium text-gray-600">No active tasks</p>
               <p className="text-xs text-gray-400 mt-1">You&apos;re all caught up!</p>
+              <p className="text-[10px] text-gray-300 mt-2">Debug: profile={profile?.id}</p>
             </div>
           ) : (
             <div className="space-y-3">
