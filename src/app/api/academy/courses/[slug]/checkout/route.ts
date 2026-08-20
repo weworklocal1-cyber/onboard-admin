@@ -140,6 +140,7 @@ export async function POST(request: Request, { params }: { params: { slug: strin
     });
   } catch (e) {
     console.error("[checkout] error:", e);
-    return NextResponse.json({ error: "Failed to initialize checkout" }, { status: 500 });
+    const message = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: "Failed to initialize checkout", details: message }, { status: 500 });
   }
 }
