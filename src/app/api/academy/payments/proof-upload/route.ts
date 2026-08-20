@@ -92,6 +92,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, orderId: order.id, proofUrl });
   } catch (e) {
     console.error("[proof-upload] error:", e);
-    return NextResponse.json({ error: "Failed to upload payment proof" }, { status: 500 });
+    const message = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: "Failed to upload payment proof", details: message }, { status: 500 });
   }
 }
