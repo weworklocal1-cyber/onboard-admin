@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "sonner";
 import { cn } from "@/lib/utils";
-import { BookOpen, GraduationCap, Award, ClipboardList, Settings, LogOut, Menu, X, DollarSign, CreditCard, Receipt } from "lucide-react";
+import { BookOpen, GraduationCap, Award, ClipboardList, Settings, LogOut, Menu, X, DollarSign, CreditCard, Receipt, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { name: "Price Requests", href: "/admin/academy/price-requests", icon: <DollarSign className="h-5 w-5" /> },
   { name: "Payments", href: "/admin/academy/settings/payment", icon: <CreditCard className="h-5 w-5" /> },
   { name: "GST", href: "/admin/academy/settings/gst", icon: <Receipt className="h-5 w-5" /> },
+  { name: "Verify Payments", href: "/admin/academy/payments/pending", icon: <Wallet className="h-5 w-5" /> },
 ];
 
 export default function AcademyAdminLayout({

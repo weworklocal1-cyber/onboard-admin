@@ -23,6 +23,12 @@ const PAYMENT_KEYS = [
   "academy_razorpay_key_secret",
   "academy_razorpay_webhook_secret",
   "academy_payment_enabled",
+  "academy_upi_id",
+  "academy_upi_name",
+  "academy_bank_account_holder",
+  "academy_bank_account_number",
+  "academy_bank_ifsc",
+  "academy_bank_name",
 ];
 
 export async function GET(request: Request) {

@@ -20,6 +20,12 @@ export default function AdminPaymentSettingsPage() {
     academy_razorpay_key_secret: "",
     academy_razorpay_webhook_secret: "",
     academy_payment_enabled: "true",
+    academy_upi_id: "",
+    academy_upi_name: "",
+    academy_bank_account_holder: "",
+    academy_bank_account_number: "",
+    academy_bank_ifsc: "",
+    academy_bank_name: "",
   });
 
   useEffect(() => {
@@ -193,6 +199,75 @@ export default function AdminPaymentSettingsPage() {
                   value={form.academy_razorpay_webhook_secret}
                   onChange={(e) => setForm({ ...form, academy_razorpay_webhook_secret: e.target.value })}
                   placeholder="Enter Razorpay Webhook Secret"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6 space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Direct UPI / Bank Details</h3>
+                <p className="text-sm text-gray-500">These details are shown to students for manual UPI or bank transfers</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="upi_id">UPI ID</Label>
+                <Input
+                  id="upi_id"
+                  value={form.academy_upi_id}
+                  onChange={(e) => setForm({ ...form, academy_upi_id: e.target.value })}
+                  placeholder="localwala@upi"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="upi_name">UPI Account Name</Label>
+                <Input
+                  id="upi_name"
+                  value={form.academy_upi_name}
+                  onChange={(e) => setForm({ ...form, academy_upi_name: e.target.value })}
+                  placeholder="LocalWala Academy"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bank_name">Bank Name</Label>
+                <Input
+                  id="bank_name"
+                  value={form.academy_bank_name}
+                  onChange={(e) => setForm({ ...form, academy_bank_name: e.target.value })}
+                  placeholder="HDFC Bank"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bank_account_holder">Account Holder Name</Label>
+                <Input
+                  id="bank_account_holder"
+                  value={form.academy_bank_account_holder}
+                  onChange={(e) => setForm({ ...form, academy_bank_account_holder: e.target.value })}
+                  placeholder="LocalWala Technologies Pvt Ltd"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bank_account_number">Account Number</Label>
+                <Input
+                  id="bank_account_number"
+                  value={form.academy_bank_account_number}
+                  onChange={(e) => setForm({ ...form, academy_bank_account_number: e.target.value })}
+                  placeholder="50100012345678"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bank_ifsc">IFSC Code</Label>
+                <Input
+                  id="bank_ifsc"
+                  value={form.academy_bank_ifsc}
+                  onChange={(e) => setForm({ ...form, academy_bank_ifsc: e.target.value })}
+                  placeholder="HDFC0001234"
                 />
               </div>
             </CardContent>

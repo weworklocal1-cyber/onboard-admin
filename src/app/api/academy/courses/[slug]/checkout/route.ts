@@ -46,7 +46,39 @@ export async function POST(request: Request, { params }: { params: { slug: strin
     const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!razorpayKeyId || !razorpayKeySecret) {
-      return NextResponse.json({ error: "Payment gateway not configured" }, { status: 500 });
+      const { data: manualOrder } = await supabaseAdmin
+        .from("academy_orders")
+        .insert({
+          user_id: user.id,
+          course_id: course.id,
+          amount: course.price,
+          currency: course.currency,
+          status: "pending_verification",
+          payment_method: "upi_direct",
+          gateway_order_id: `manual_${Date.now()}`,
+        })
+        .select("id")
+        .single();
+
+      const { data: gstSettings } = await supabaseAdmin
+        .from("settings")
+        .select("key, value")
+        .in("key", ["academy_gst_rate", "academy_gst_enabled", "academy_gst_inclusive"]);
+
+      const gstSettingsMap: Record<string, string> = {};
+      (gstSettings || []).forEach((row: any) => {
+        gstSettingsMap[row.key] = row.value;
+      });
+
+      return NextResponse.json({
+        order_id: manualOrder?.id || `manual_${Date.now()}`,
+        amount: course.price,
+        currency: course.currency,
+        key_id: "",
+        course: { id: course.id, title: course.title, slug: course.slug },
+        order_record_id: manualOrder?.id,
+        gst: gstSettingsMap,
+      });
     }
 
     const razorpay = new Razorpay({
