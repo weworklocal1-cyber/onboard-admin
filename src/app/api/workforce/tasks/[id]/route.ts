@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { sendTaskEmail } from "../email";
+import { logAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -156,6 +157,15 @@ export async function PUT(
     }
 
     if (status && status !== oldStatus) {
+      await logAudit(
+        "task_status_change",
+        "tasks",
+        taskId,
+        { status: oldStatus },
+        { status: finalStatus },
+        sessionUser.id
+      );
+
       await supabaseAdmin.from("task_history").insert({
         task_id: taskId,
         actor_id: sessionUser.id,

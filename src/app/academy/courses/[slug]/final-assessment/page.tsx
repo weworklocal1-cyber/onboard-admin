@@ -15,7 +15,9 @@ interface Question {
   option_b: string;
   option_c: string;
   option_d: string;
-  correct_option: string;
+  difficulty: string;
+  category: string;
+  tags: string[];
 }
 
 export default function FinalAssessmentPage({ params }: { params: { slug: string } }) {
@@ -29,7 +31,7 @@ export default function FinalAssessmentPage({ params }: { params: { slug: string
   const [submitting, setSubmitting] = useState(false);
   const [locked, setLocked] = useState(false);
   const [lockReason, setLockReason] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [passingScore, setPassingScore] = useState(68);
   const beforeUnloadHandlerRef = useRef<((e: BeforeUnloadEvent) => void) | null>(null);
   const answersRef = useRef<Record<string, string>>({});
@@ -62,20 +64,14 @@ export default function FinalAssessmentPage({ params }: { params: { slug: string
     };
   }, [questions, submitting]);
 
-  const saveAnswer = async (questionId: string, optionLabel: string, correct: boolean) => {
+  const _saveAnswer = async (questionId: string, optionLabel: string) => {
     const token = (await supabase.auth.getSession()).data.session?.access_token;
     if (!token || !attemptId) return;
     await fetch("/api/academy/answers", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ attempt_id: attemptId, question_id: questionId, selected_option: optionLabel, is_correct: correct }),
+      body: JSON.stringify({ attempt_id: attemptId, question_id: questionId, selected_option: optionLabel, is_correct: false }),
     });
-  };
-
-  const selectAnswer = (questionId: string, label: string) => {
-    setSelectedOption(label);
-    answersRef.current = { ...answersRef.current, [questionId]: label };
-    try { sessionStorage.setItem(`final_answers_${params.slug}`, JSON.stringify(answersRef.current)); } catch {}
   };
 
   const handleSubmit = useCallback(async () => {
@@ -85,8 +81,8 @@ export default function FinalAssessmentPage({ params }: { params: { slug: string
       window.removeEventListener("beforeunload", beforeUnloadHandlerRef.current);
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || !attemptId) return;
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    if (!token || !attemptId) return;
 
     const answerMap = { ...answersRef.current };
     try {
@@ -108,158 +104,91 @@ Check the browser console for more details.`);
       return;
     }
 
-    console.log("[FinalAssessment] submit answers:", JSON.stringify(answerMap), "questions:", questions.length, "answerCount:", selectedQuestionIds.length);
+    try {
+      const res = await fetch("/api/academy/final-assessment/submit", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ attempt_id: attemptId, answers: answerMap }),
+      });
 
-    let correct = 0;
-    const scored = questions.map((q) => {
-      const selected = (answerMap[q.id] || "").toLowerCase();
-      const expected = (q.correct_option || "").toLowerCase();
-      const isCorrect = !!(selected && expected && selected === expected);
-      if (isCorrect) correct++;
-      return { id: q.id, selected, expected, isCorrect };
-    });
-    for (const q of questions) {
-      const selected = (answerMap[q.id] || "").toLowerCase();
-      const expected = (q.correct_option || "").toLowerCase();
-      const isCorrect = !!(selected && expected && selected === expected);
-      await saveAnswer(q.id, answerMap[q.id] || "", isCorrect);
-    }
-    console.log("[FinalAssessment] scored:", JSON.stringify(scored), "correct:", correct, "pct:", Math.round((correct / questions.length) * 100));
+      const json = await res.json();
+      if (!res.ok) {
+        alert(json.error || "Failed to submit assessment");
+        setSubmitting(false);
+        return;
+      }
 
-    const percentage = Math.round((correct / questions.length) * 100);
+      if (json.passed) {
+        const { data: course } = await supabase
+          .from("academy_courses")
+          .select("id")
+          .eq("slug", params.slug)
+          .single();
 
-    const { error: attemptError } = await supabase.from("academy_attempts").update({
-      score: correct,
-      percentage,
-      passed: percentage >= passingScore,
-      submitted_at: new Date().toISOString(),
-    }).eq("id", attemptId);
+        if (course) {
+          try {
+            await fetch("/api/academy/certificates/issue", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ course_id: course.id, score: json.score, percentage: json.percentage }),
+            });
+          } catch (e) {
+            console.error("Failed to issue certificate", e);
+          }
 
-    if (attemptError) {
-      console.error("Failed to update attempt score:", attemptError);
-    }
-
-    const { data: course } = await supabase
-      .from("academy_courses")
-      .select("id")
-      .eq("slug", params.slug)
-      .single();
-
-    if (percentage >= passingScore && course) {
-      try {
-        const token = (await supabase.auth.getSession()).data.session?.access_token;
-        if (token) {
-          await fetch("/api/academy/certificates/issue", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ course_id: course.id, score: correct, percentage }),
-          });
+          try {
+            await supabase.from("academy_enrollments").update({ status: "completed", completed_at: new Date().toISOString() }).eq("user_id", (await supabase.auth.getUser()).data.user?.id).eq("course_id", course.id);
+          } catch (e) {
+            console.error("Failed to update enrollment", e);
+          }
         }
-      } catch (e) {
-        console.error("Failed to issue certificate", e);
       }
 
-      try {
-        await supabase.from("academy_enrollments").update({ status: "completed", completed_at: new Date().toISOString() }).eq("user_id", user.id).eq("course_id", course.id);
-      } catch (e) {
-        console.error("Failed to update enrollment", e);
-      }
+      router.push(`/academy/courses/${params.slug}/results?passed=${json.passed}&score=${json.percentage}&passingScore=${json.passing_score}`);
+    } catch {
+      alert("An unexpected error occurred during submission");
+      setSubmitting(false);
     }
-
-    router.push(`/academy/courses/${params.slug}/results?passed=${percentage >= passingScore}&score=${percentage}&passingScore=${passingScore}`);
-  }, [submitting, supabase, attemptId, questions, selectedOption, currentQuestion, params.slug, router, passingScore]);
+  }, [submitting, supabase, attemptId, selectedOption, currentQuestion, params.slug, router]);
 
   useEffect(() => {
     const initAssessment = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: course } = await supabase
-        .from("academy_courses")
-        .select("id, passing_score")
-        .eq("slug", params.slug)
-        .single();
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) return;
 
-      if (!course) return;
-      setPassingScore(course.passing_score || 68);
+      try {
+        const res = await fetch(`/api/academy/courses/${params.slug}/final-assessment`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      const { data: enrollment } = await supabase
-        .from("academy_enrollments")
-        .select("status")
-        .eq("user_id", user.id)
-        .eq("course_id", course.id)
-        .maybeSingle();
+        const json = await res.json();
 
-      if (!enrollment || enrollment.status === "dropped") {
+        if (!res.ok) {
+          setLocked(true);
+          setLockReason(json.error || "Unable to load assessment");
+          setLoading(false);
+          return;
+        }
+
+        if (json.locked) {
+          setLocked(true);
+          setLockReason(json.error || "Assessment is locked");
+          setLoading(false);
+          return;
+        }
+
+        setQuestions(json.questions);
+        setAttemptId(json.attempt_id);
+        setPassingScore(json.passing_score || 68);
+      } catch (e) {
         setLocked(true);
-        setLockReason("You must be enrolled and active in this course to take the final assessment.");
-        setLoading(false);
-        return;
+        setLockReason("Failed to load assessment");
+        console.error(e);
       }
 
-      const { data: modulesData } = await supabase
-        .from("academy_modules")
-        .select("id")
-        .eq("course_id", course.id);
-
-      const moduleIds = (modulesData || []).map((m: any) => m.id);
-
-      const { data: lessonsData } = await supabase
-        .from("academy_lessons")
-        .select("id")
-        .in("module_id", moduleIds);
-
-      const allLessonIds = (lessonsData || []).map((l: any) => l.id);
-
-      if (allLessonIds.length === 0) {
-        setLocked(true);
-        setLockReason("This course has no lessons yet.");
-        setLoading(false);
-        return;
-      }
-
-      const { data: progressData } = await supabase
-        .from("academy_progress")
-        .select("lesson_id, completed")
-        .eq("user_id", user.id)
-        .in("lesson_id", allLessonIds);
-
-      const completedLessonIds = new Set((progressData || []).filter((p: any) => p.completed).map((p: any) => p.lesson_id));
-      const incompleteLessons = allLessonIds.filter((id: string) => !completedLessonIds.has(id));
-
-      if (incompleteLessons.length > 0) {
-        setLocked(true);
-        setLockReason(`You must complete all ${allLessonIds.length} lessons before taking the final assessment. ${incompleteLessons.length} lesson(s) remaining.`);
-        setLoading(false);
-        return;
-      }
-
-      const { data: quizzesData } = await supabase
-        .from("academy_quizzes")
-        .select("id")
-        .in("module_id", moduleIds);
-
-      const quizIds = (quizzesData || []).map((q: any) => q.id);
-
-      const { data: questionsData } = await supabase
-        .from("academy_questions")
-        .select("*")
-        .in("quiz_id", quizIds);
-
-      const allQuestions = (questionsData || []) as Question[];
-      setQuestions(allQuestions.sort(() => Math.random() - 0.5).slice(0, 30));
-
-      const { data: attempt } = await supabase
-        .from("academy_attempts")
-        .insert({
-          user_id: user.id,
-          course_id: course.id,
-          started_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
-
-      setAttemptId(attempt?.id);
       setLoading(false);
     };
     initAssessment();
@@ -311,6 +240,12 @@ Check the browser console for more details.`);
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       setSelectedOption(answersRef.current[questions[currentQuestionIndex + 1].id] || null);
     }
+  };
+
+  const selectAnswer = (questionId: string, label: string) => {
+    setSelectedOption(label);
+    answersRef.current = { ...answersRef.current, [questionId]: label };
+    try { sessionStorage.setItem(`final_answers_${params.slug}`, JSON.stringify(answersRef.current)); } catch {}
   };
 
   if (questions.length === 0 && !locked) {

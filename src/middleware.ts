@@ -44,7 +44,32 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Protect workforce routes
+  const PUBLIC_ACADEMY_PATHS = [
+    "/academy",
+    "/academy/login",
+    "/academy/register",
+    "/academy/courses",
+    "/academy/certificates",
+  ];
+
+  const isPublicAcademyPath = PUBLIC_ACADEMY_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(p + "/")
+  );
+
+  const isCheckoutPath = pathname.startsWith("/academy/courses/") && pathname.endsWith("/checkout");
+
+  if (pathname.startsWith("/academy") && !isPublicAcademyPath && !isCheckoutPath && !pathname.startsWith("/workforce")) {
+    if (!user) {
+      const loginUrl = new URL("/academy/login", request.url);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
+  if (isCheckoutPath && !user) {
+    const loginUrl = new URL("/academy/login", request.url);
+    return NextResponse.redirect(loginUrl);
+  }
+
   if (pathname.startsWith("/workforce") && !pathname.startsWith("/workforce/login")) {
     if (!user) {
       const loginUrl = new URL("/workforce/login", request.url);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { isAdmin } from "@/lib/permissions";
+import { logAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,15 @@ export async function PATCH(request: Request) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    await logAudit(
+      "territory_update",
+      "territories",
+      territoryId,
+      {},
+      body,
+      sessionUser.id
+    );
 
     return NextResponse.json({ success: true, territory: data });
   } catch (err: unknown) {

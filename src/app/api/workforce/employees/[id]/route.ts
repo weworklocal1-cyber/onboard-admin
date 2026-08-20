@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { logAudit } from "@/lib/audit";
 
 async function getSessionUser(request: Request) {
   const token = request.headers.get("authorization")?.replace("Bearer ", "");
@@ -68,6 +69,18 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (role !== undefined && role !== data?.role) {
+    await logAudit(
+      "role_change",
+      "profiles",
+      params.id,
+      { role: data?.role },
+      { role },
+      sessionUser.id
+    );
+  }
+
   return NextResponse.json({ employee: data });
 }
 

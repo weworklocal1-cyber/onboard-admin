@@ -16,10 +16,19 @@ interface Course {
   difficulty: string;
   passing_score: number;
   is_published: boolean;
+  is_free: boolean;
+  price: number;
+  currency: string;
+  instructor_name?: string;
+  what_you_will_learn?: string[];
   thumbnail_url?: string;
+  original_price?: number;
+  discounted_price?: number;
+  offer_duration_days?: number;
 }
 
 const DIFFICULTY_OPTIONS = ["beginner", "intermediate", "advanced"];
+const CURRENCY_OPTIONS = ["INR", "USD", "EUR", "GBP"];
 
 export default function AdminCoursesPage() {
   const supabase = createClient();
@@ -27,7 +36,7 @@ export default function AdminCoursesPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Course | null>(null);
-  const [form, setForm] = useState({ title: "", description: "", difficulty: "beginner", passing_score: 68, is_published: false, thumbnail_url: "" });
+  const [form, setForm] = useState({ title: "", description: "", difficulty: "beginner", passing_score: 68, is_published: false, is_free: true, price: 0, currency: "INR", instructor_name: "", what_you_will_learn: "", thumbnail_url: "", original_price: 0, discounted_price: 0, offer_duration_days: 3 });
 
   useEffect(() => { fetchCourses(); }, []);
 
@@ -55,13 +64,13 @@ export default function AdminCoursesPage() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ title: "", description: "", difficulty: "beginner", passing_score: 68, is_published: false, thumbnail_url: "" });
+    setForm({ title: "", description: "", difficulty: "beginner", passing_score: 68, is_published: false, is_free: true, price: 0, currency: "INR", instructor_name: "", what_you_will_learn: "", thumbnail_url: "", original_price: 0, discounted_price: 0, offer_duration_days: 3 });
     setModalOpen(true);
   };
 
   const openEdit = (course: Course) => {
     setEditing(course);
-    setForm({ title: course.title, description: course.description, difficulty: course.difficulty, passing_score: course.passing_score, is_published: course.is_published, thumbnail_url: course.thumbnail_url || "" });
+    setForm({ title: course.title, description: course.description, difficulty: course.difficulty, passing_score: course.passing_score, is_published: course.is_published, is_free: course.is_free, price: course.price, currency: course.currency, instructor_name: course.instructor_name || "", what_you_will_learn: (course.what_you_will_learn || []).join("\n"), thumbnail_url: course.thumbnail_url || "", original_price: (course as any).original_price || 0, discounted_price: (course as any).discounted_price || 0, offer_duration_days: (course as any).offer_duration_days || 3 });
     setModalOpen(true);
   };
 
@@ -73,10 +82,21 @@ export default function AdminCoursesPage() {
     try {
       const url = editing ? `/api/admin/academy/courses` : `/api/admin/academy/courses`;
       const method = editing ? "PATCH" : "POST";
+      const payload: any = editing ? { id: editing.id, ...form, slug } : { ...form, slug };
+      if (form.is_free) {
+        payload.price = 0;
+        payload.currency = "INR";
+        payload.original_price = 0;
+        payload.discounted_price = 0;
+        payload.offer_duration_days = 0;
+      }
+      if (form.what_you_will_learn) {
+        payload.what_you_will_learn = form.what_you_will_learn.split("\n").filter((line: string) => line.trim() !== "");
+      }
       const res = await fetch(url, {
         method,
         headers,
-        body: JSON.stringify(editing ? { id: editing.id, ...form, slug } : { ...form, slug }),
+        body: JSON.stringify(payload),
       });
 
       const json = await res.json();
@@ -132,9 +152,10 @@ export default function AdminCoursesPage() {
                     <h3 className="font-semibold text-lg">{course.title}</h3>
                     <Badge variant={course.is_published ? "brand" : "secondary"}>{course.is_published ? "Published" : "Draft"}</Badge>
                     <Badge variant="outline" className="capitalize">{course.difficulty}</Badge>
+                    <Badge variant={course.is_free ? "secondary" : "default"}>{course.is_free ? "Free" : `Paid (${course.currency} ${course.price})`}</Badge>
                   </div>
                   <p className="text-sm text-gray-500 line-clamp-1">{course.description}</p>
-                  <p className="text-sm text-gray-400 mt-1">Passing: {course.passing_score}%</p>
+                  <p className="text-sm text-gray-400 mt-1">Passing: {course.passing_score}% {course.instructor_name ? `• Instructor: ${course.instructor_name}` : ""}</p>
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <Button variant="ghost" size="sm" onClick={() => openEdit(course)}><Edit className="h-4 w-4" /></Button>
@@ -175,6 +196,60 @@ export default function AdminCoursesPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Passing Score (%)</label>
               <input type="number" min={0} max={100} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-academy-primary" value={form.passing_score} onChange={(e) => setForm({ ...form, passing_score: Number(e.target.value) })} />
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Instructor Name</label>
+              <input className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-academy-primary" value={form.instructor_name} onChange={(e) => setForm({ ...form, instructor_name: e.target.value })} placeholder="LocalWala Team" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+              <select className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-academy-primary" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} disabled={form.is_free}>
+                {CURRENCY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="free" checked={form.is_free} onChange={(e) => setForm({ ...form, is_free: e.target.checked })} className="h-4 w-4 rounded accent-academy-primary" />
+              <label htmlFor="free" className="text-sm text-gray-700">Free course</label>
+            </div>
+            {!form.is_free && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Price ({form.currency}):</label>
+                <input type="number" min={1} step={1} className="w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-academy-primary" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} />
+              </div>
+            )}
+          </div>
+          {!form.is_free && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Original Price ({form.currency})</label>
+                  <input type="number" min={1} step={1} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-academy-primary" value={form.original_price} onChange={(e) => setForm({ ...form, original_price: Number(e.target.value) })} placeholder="e.g. 1999" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Discounted Price ({form.currency})</label>
+                  <input type="number" min={0} step={1} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-academy-primary" value={form.discounted_price} onChange={(e) => setForm({ ...form, discounted_price: Number(e.target.value) })} placeholder="e.g. 499" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Offer Duration (Days)</label>
+                  <input type="number" min={0} step={1} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-academy-primary" value={form.offer_duration_days} onChange={(e) => setForm({ ...form, offer_duration_days: Number(e.target.value) })} placeholder="3" />
+                  <p className="text-xs text-gray-400 mt-1">New users will see the discounted price for this many days after registration.</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Current Selling Price ({form.currency})</label>
+                  <input type="number" min={1} step={1} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-academy-primary bg-gray-50" value={form.price} readOnly />
+                  <p className="text-xs text-gray-400 mt-1">Auto-set to discounted price if within offer period, otherwise original price.</p>
+                </div>
+              </div>
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">What You Will Learn (one per line)</label>
+            <textarea className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-academy-primary h-24 resize-none" value={form.what_you_will_learn} onChange={(e) => setForm({ ...form, what_you_will_learn: e.target.value })} placeholder="Understand core concepts&#10;Build real projects&#10;Earn a certificate" />
           </div>
           <div className="flex items-center gap-2">
             <input type="checkbox" id="pub" checked={form.is_published} onChange={(e) => setForm({ ...form, is_published: e.target.checked })} className="h-4 w-4 rounded accent-academy-primary" />

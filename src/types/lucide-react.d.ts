@@ -95,5 +95,8 @@ declare module "lucide-react" {
   export const MinusCircle: React.FC<IconProps>;
   export const CreditCard: React.FC<IconProps>;
   export const Receipt: React.FC<IconProps>;
+  export const Save: React.FC<IconProps>;
+  export const Eye: React.FC<IconProps>;
+  export const EyeOff: React.FC<IconProps>;
   export const FileSpreadsheet: React.FC<IconProps>;
 }

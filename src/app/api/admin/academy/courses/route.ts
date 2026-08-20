@@ -34,9 +34,40 @@ export async function POST(request: Request) {
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const body = await request.json();
-    const { title, description, difficulty, passing_score, is_published, slug } = body as any;
+    const { title, description, difficulty, passing_score, is_published, slug, is_free, price, currency, instructor_name, what_you_will_learn, original_price, discounted_price, offer_duration_days } = body as any;
     if (!title || !slug) return NextResponse.json({ error: "Title and slug are required" }, { status: 400 });
-    const { data, error } = await supabaseAdmin.from("academy_courses").insert([{ title, description, slug, difficulty: difficulty || "beginner", passing_score: passing_score ?? 68, is_published: !!is_published }]).select("*").single();
+
+    const free = !!is_free;
+    const normalizedPrice = free ? 0 : Math.max(0, Number(price) || 0);
+    const normalizedCurrency = (free ? "INR" : (currency || "INR")).toUpperCase();
+    const normalizedOriginalPrice = free ? 0 : Math.max(0, Number(original_price) || 0);
+    const normalizedDiscountedPrice = free ? 0 : Math.max(0, Number(discounted_price) || 0);
+    const normalizedOfferDuration = free ? 0 : Math.max(0, Number(offer_duration_days) || 0);
+
+    if (!free && normalizedPrice <= 0) {
+      return NextResponse.json({ error: "Paid courses must have a price greater than 0" }, { status: 400 });
+    }
+
+    if (!free && normalizedOriginalPrice > 0 && normalizedDiscountedPrice > 0 && normalizedDiscountedPrice >= normalizedOriginalPrice) {
+      return NextResponse.json({ error: "Discounted price must be less than original price" }, { status: 400 });
+    }
+
+    const { data, error } = await supabaseAdmin.from("academy_courses").insert([{
+      title,
+      description,
+      slug,
+      difficulty: difficulty || "beginner",
+      passing_score: passing_score ?? 68,
+      is_published: !!is_published,
+      is_free: free,
+      price: normalizedPrice,
+      currency: normalizedCurrency,
+      instructor_name: instructor_name || null,
+      what_you_will_learn: Array.isArray(what_you_will_learn) ? what_you_will_learn : null,
+      original_price: normalizedOriginalPrice,
+      discounted_price: normalizedDiscountedPrice,
+      offer_duration_days: normalizedOfferDuration,
+    }]).select("*").single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ data });
   } catch (e) {
@@ -49,7 +80,7 @@ export async function PATCH(request: Request) {
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const body = await request.json();
-    const { id, title, description, difficulty, passing_score, is_published, slug } = body as any;
+    const { id, title, description, difficulty, passing_score, is_published, slug, is_free, price, currency, instructor_name, what_you_will_learn, original_price, discounted_price, offer_duration_days } = body as any;
     if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
     const updates: Record<string, any> = {};
     if (title !== undefined) updates.title = title;
@@ -58,6 +89,33 @@ export async function PATCH(request: Request) {
     if (passing_score !== undefined) updates.passing_score = passing_score;
     if (is_published !== undefined) updates.is_published = is_published;
     if (slug !== undefined) updates.slug = slug;
+    if (is_free !== undefined) {
+      updates.is_free = !!is_free;
+      if (!!is_free) {
+        updates.price = 0;
+        updates.currency = "INR";
+        updates.original_price = 0;
+        updates.discounted_price = 0;
+        updates.offer_duration_days = 0;
+      }
+    }
+    if (price !== undefined && !updates.is_free) {
+      updates.price = Math.max(0, Number(price) || 0);
+    }
+    if (currency !== undefined && !updates.is_free) {
+      updates.currency = (currency || "INR").toUpperCase();
+    }
+    if (original_price !== undefined && !updates.is_free) {
+      updates.original_price = Math.max(0, Number(original_price) || 0);
+    }
+    if (discounted_price !== undefined && !updates.is_free) {
+      updates.discounted_price = Math.max(0, Number(discounted_price) || 0);
+    }
+    if (offer_duration_days !== undefined && !updates.is_free) {
+      updates.offer_duration_days = Math.max(0, Number(offer_duration_days) || 0);
+    }
+    if (instructor_name !== undefined) updates.instructor_name = instructor_name || null;
+    if (what_you_will_learn !== undefined) updates.what_you_will_learn = Array.isArray(what_you_will_learn) ? what_you_will_learn : null;
     const { data, error } = await supabaseAdmin.from("academy_courses").update(updates).eq("id", id).select("*").single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ data });

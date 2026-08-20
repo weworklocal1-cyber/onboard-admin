@@ -19,6 +19,11 @@ interface Course {
   difficulty: string;
   passing_score: number;
   is_published: boolean;
+  is_free: boolean;
+  price: number;
+  currency: string;
+  instructor_name?: string;
+  what_you_will_learn?: string[];
   thumbnail_url?: string;
 }
 
@@ -49,17 +54,29 @@ export default function CourseOverviewPage({ params }: { params: { slug: string 
   const [totalQuizzes, setTotalQuizzes] = useState(0);
   const [loading, setLoading] = useState(true);
   const [enrolling, setEnrolling] = useState(false);
+  const [userEnrollment, setUserEnrollment] = useState<{ status: string } | null>(null);
 
   useEffect(() => {
     const fetchCourse = async () => {
       const { data: courseData } = await supabase
         .from("academy_courses")
-        .select("*")
+        .select("*, is_free, price, currency, instructor_name, what_you_will_learn")
         .eq("slug", params.slug)
         .single();
 
       if (!courseData) return;
       setCourse(courseData);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && courseData) {
+        const { data: enrollmentData } = await supabase
+          .from("academy_enrollments")
+          .select("status")
+          .eq("user_id", user.id)
+          .eq("course_id", courseData.id)
+          .maybeSingle();
+        setUserEnrollment(enrollmentData);
+      }
 
       const { data: modulesData } = await supabase
         .from("academy_modules")
@@ -80,6 +97,11 @@ export default function CourseOverviewPage({ params }: { params: { slug: string 
   }, [supabase, params.slug]);
 
   const handleEnroll = async () => {
+    if (!userEnrollment && course && !course.is_free && (course.price ?? 0) > 0) {
+      router.push(`/academy/courses/${params.slug}/checkout`);
+      return;
+    }
+
     const { data: { user } } = await supabase.auth.getUser();
     if (!user || !course) {
       window.location.href = "/academy/login";
@@ -101,6 +123,11 @@ export default function CourseOverviewPage({ params }: { params: { slug: string 
       });
 
       const json = await res.json();
+
+      if (res.status === 402) {
+        router.push(`/academy/courses/${params.slug}/checkout`);
+        return;
+      }
 
       if (!res.ok || json.error) {
         toast.error(json.error || "Failed to enroll");
@@ -181,36 +208,36 @@ export default function CourseOverviewPage({ params }: { params: { slug: string 
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Course Description</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600">{course.description}</p>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+         <div className="lg:col-span-2 space-y-6">
+           <Card>
+             <CardHeader>
+               <CardTitle>Course Description</CardTitle>
+             </CardHeader>
+             <CardContent>
+               <p className="text-gray-600">{course.description}</p>
+             </CardContent>
+           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Learning Outcomes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2">
-                {[
-                  "Understand core Local Commerce concepts",
-                  "Learn digital commerce workflows",
-                  "Master professional skills for internships",
-                ].map((outcome, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-academy-primary mt-0.5" />
-                    <span>{outcome}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+           <Card>
+             <CardHeader>
+               <CardTitle>Learning Outcomes</CardTitle>
+             </CardHeader>
+             <CardContent>
+               <ul className="space-y-2">
+                 {(course.what_you_will_learn && course.what_you_will_learn.length > 0 ? course.what_you_will_learn : [
+                   "Understand core Local Commerce concepts",
+                   "Learn digital commerce workflows",
+                   "Master professional skills for internships",
+                 ]).map((outcome, i) => (
+                   <li key={i} className="flex items-start gap-2">
+                     <CheckCircle2 className="h-5 w-5 text-academy-primary mt-0.5" />
+                     <span>{outcome}</span>
+                   </li>
+                 ))}
+               </ul>
+             </CardContent>
+           </Card>
 
           <Card>
             <CardHeader>
@@ -247,7 +274,7 @@ export default function CourseOverviewPage({ params }: { params: { slug: string 
                   <Users className="h-6 w-6 text-academy-primary" />
                 </div>
                 <div>
-                  <p className="font-semibold">LocalWala Team</p>
+                  <p className="font-semibold">{course.instructor_name || "LocalWala Team"}</p>
                   <p className="text-sm text-gray-500">Expert Instructors</p>
                 </div>
               </div>
@@ -265,14 +292,26 @@ export default function CourseOverviewPage({ params }: { params: { slug: string 
               <p className="text-sm text-gray-600 mb-4">
                 Complete this course and earn a verified certificate
               </p>
-          <Button
-            className="w-full bg-academy-primary hover:bg-academy-secondary"
-            onClick={handleEnroll}
-            disabled={enrolling}
-            isLoading={enrolling}
-          >
-            {enrolling ? "Enrolling..." : "Enroll Now"}
-          </Button>
+              {userEnrollment ? (
+                <Button
+                  className="w-full bg-green-600 hover:bg-green-700"
+                  onClick={() => router.push(`/academy/courses/${params.slug}/learn`)}
+                >
+                  {userEnrollment.status === "completed" ? "Review Course" : "Continue Learning"}
+                </Button>
+              ) : (
+                <Button
+                  className={`w-full ${course.is_free ? "bg-academy-primary hover:bg-academy-secondary" : "bg-yellow-600 hover:bg-yellow-700 text-white"}`}
+                  onClick={handleEnroll}
+                  disabled={enrolling}
+                  isLoading={enrolling}
+                >
+                  {enrolling ? "Processing..." : course.is_free ? "Enroll Now" : `Buy Now — ${course.currency} ${course.price}`}
+                </Button>
+              )}
+              {!course.is_free && (
+                <p className="text-xs text-gray-400 mt-2 text-center">One-time payment. Lifetime access.</p>
+              )}
             </CardContent>
           </Card>
         </div>

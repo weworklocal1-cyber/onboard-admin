@@ -385,6 +385,13 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+[edge_functions.cron_jobs]
+attendance-reminder = "30 10 * * *"
+checkout-reminder = "0 19 * * *"
+eod-reminder = "0 20,21,22 * * *"
+follow-up-reminder = "*/15 * * * *"
+overdue-tasks = "0 8 * * *"
+
 [analytics]
 enabled = true
 port = 54327

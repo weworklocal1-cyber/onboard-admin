@@ -41,9 +41,6 @@ export async function POST(request: Request) {
 
     const certificateId = `LWC-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
-    const userName = (user.user_metadata?.full_name as string) || (user as any).full_name || "";
-    const userEmail = user.email || "";
-
     const { data: certificate, error } = await supabaseAdmin
       .from("academy_certificates")
       .insert({
@@ -51,8 +48,6 @@ export async function POST(request: Request) {
         user_id: user.id,
         course_id,
         score: percentage,
-        user_name: userName,
-        user_email: userEmail,
       })
       .select("certificate_id")
       .single();

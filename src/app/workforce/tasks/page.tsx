@@ -429,9 +429,9 @@ export default function TasksPage() {
   const blockedTasks = tasks.filter(t => t.status === "blocked");
 
   const todayStr = new Date().toISOString().split("T")[0];
-  const todayTasks = tasks.filter(t => t.due_date === todayStr && !["completed", "approved"].includes(t.status));
-  const overdueTasks = tasks.filter(t => t.due_date && t.due_date < todayStr && !["completed", "approved", "rejected"].includes(t.status));
-  const upcomingTasks = tasks.filter(t => t.due_date && t.due_date > todayStr && !["completed", "approved", "rejected"].includes(t.status));
+  const todayTasks = tasks.filter(t => t.due_date === todayStr && !["completed", "in_review", "approved", "rejected"].includes(t.status));
+  const overdueTasks = tasks.filter(t => t.due_date && t.due_date < todayStr && !["completed", "in_review", "approved", "rejected"].includes(t.status));
+  const upcomingTasks = tasks.filter(t => t.due_date && t.due_date > todayStr && !["completed", "in_review", "approved", "rejected"].includes(t.status));
 
   const getFilteredTasks = () => {
     let result = tasks;

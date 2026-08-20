@@ -15,7 +15,9 @@ interface Question {
   option_b: string;
   option_c: string;
   option_d: string;
-  correct_option: string;
+  difficulty: string;
+  category: string;
+  tags: string[];
 }
 
 interface Quiz {
@@ -39,16 +41,16 @@ export default function QuizPage({ params }: { params: { slug: string; quizId: s
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore] = useState(0);
+  const [percentage, setPercentage] = useState(0);
+  const [passingScore, setPassingScore] = useState(70);
 
   const saveAnswer = async (questionId: string, optionLabel: string) => {
     const token = (await supabase.auth.getSession()).data.session?.access_token;
     if (!token || !attemptId) return;
-    const q = questions.find((q) => q.id === questionId);
-    const isCorrect = q ? optionLabel === q[`option_${q.correct_option}` as keyof Question] : false;
     await fetch("/api/academy/answers", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ attempt_id: attemptId, question_id: questionId, selected_option: optionLabel, is_correct: isCorrect }),
+      body: JSON.stringify({ attempt_id: attemptId, question_id: questionId, selected_option: optionLabel, is_correct: false }),
     });
   };
 
@@ -56,30 +58,37 @@ export default function QuizPage({ params }: { params: { slug: string; quizId: s
     if (submitting) return;
     setSubmitting(true);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || !attemptId) return;
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    if (!token || !attemptId) return;
 
-    let correct = 0;
-    for (const q of questions) {
-      const selected = answers[q.id];
-      const isCorrect = selected === q[`option_${q.correct_option}` as keyof Question];
-      if (isCorrect) correct++;
-      await saveAnswer(q.id, selected || "");
+    const allAnswers = { ...answers };
+    if (selectedOption && questions[currentQuestionIndex]) {
+      allAnswers[questions[currentQuestionIndex].id] = selectedOption;
     }
 
-    const percentage = Math.round((correct / questions.length) * 100);
-    const passed = percentage >= (quiz?.passing_score || 68);
+    try {
+      const res = await fetch("/api/academy/quiz-submit", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ attempt_id: attemptId, answers: allAnswers }),
+      });
 
-    await supabase.from("academy_attempts").update({
-      score: correct,
-      percentage,
-      passed,
-      submitted_at: new Date().toISOString(),
-    }).eq("id", attemptId);
+      const json = await res.json();
+      if (!res.ok) {
+        alert(json.error || "Failed to submit quiz");
+        setSubmitting(false);
+        return;
+      }
 
-    setScore(correct);
-    setSubmitted(true);
-  }, [submitting, supabase, attemptId, questions, answers, quiz]);
+      setScore(json.score);
+      setPercentage(json.percentage);
+      setPassingScore(json.passing_score);
+      setSubmitted(true);
+    } catch {
+      alert("An unexpected error occurred during submission");
+      setSubmitting(false);
+    }
+  }, [submitting, supabase, attemptId, questions, answers, selectedOption, currentQuestionIndex]);
 
   const shuffle = <T,>(array: T[]): T[] => {
     const result = [...array];
@@ -105,39 +114,47 @@ export default function QuizPage({ params }: { params: { slug: string; quizId: s
         return;
       }
 
-      const { data: questionsData } = await supabase
-        .from("academy_questions")
-        .select("*")
-        .eq("quiz_id", quizId);
-
-      if (questionsData && questionsData.length > 0) {
-        setQuestions(shuffle(questionsData));
-      } else {
-        console.error("No questions found for quiz:", quizId);
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) {
+        window.location.href = "/academy/login";
+        return;
       }
 
-      const { data: quizData } = await supabase
-        .from("academy_quizzes")
-        .select("*")
-        .eq("id", quizId)
-        .single();
+      try {
+        const res = await fetch(`/api/academy/quizzes/${quizId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      if (quizData) {
-        setQuiz(quizData);
-        setTimeLeft((quizData.time_limit_minutes || 10) * 60);
+        const json = await res.json();
+        if (!res.ok) {
+          alert(json.error || "Failed to load quiz");
+          setLoading(false);
+          return;
+        }
+
+        if (json.questions && json.questions.length > 0) {
+          setQuiz(json.quiz);
+          setQuestions(shuffle(json.questions));
+          setTimeLeft((json.quiz.time_limit_minutes || 10) * 60);
+          setPassingScore(json.quiz.passing_score || 70);
+
+          const attemptRes = await fetch("/api/academy/attempts", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ quiz_id: quizId, started_at: new Date().toISOString() }),
+          });
+
+          const attemptJson = await attemptRes.json();
+          if (attemptJson.id) {
+            setAttemptId(attemptJson.id);
+          }
+        } else {
+          console.error("No questions found for quiz:", quizId);
+        }
+      } catch (e) {
+        console.error("Failed to init quiz:", e);
       }
 
-      const { data: attempt } = await supabase
-        .from("academy_attempts")
-        .insert({
-          user_id: user.id,
-          quiz_id: quizId,
-          started_at: new Date().toISOString(),
-        })
-        .select("id")
-        .single();
-
-      setAttemptId(attempt?.id || null);
       setLoading(false);
     };
 
@@ -201,8 +218,8 @@ export default function QuizPage({ params }: { params: { slug: string; quizId: s
 
   if (submitted) {
     const total = questions.length;
-    const percentage = Math.round((score / total) * 100);
-    const passed = percentage >= (quiz?.passing_score || 68);
+    const pct = percentage;
+    const passed = pct >= passingScore;
 
     return (
       <div className="max-w-2xl mx-auto space-y-6">
@@ -229,7 +246,7 @@ export default function QuizPage({ params }: { params: { slug: string; quizId: s
               </div>
               <div className="h-12 w-px bg-gray-200" />
               <div>
-                <p className="text-4xl font-bold">{percentage}%</p>
+                <p className="text-4xl font-bold">{pct}%</p>
                 <p className="text-sm text-gray-500">Percentage</p>
               </div>
             </div>

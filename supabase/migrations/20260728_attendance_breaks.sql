@@ -11,7 +11,7 @@ CREATE TABLE attendance_breaks (
   date DATE NOT NULL DEFAULT CURRENT_DATE,
   start_time TIMESTAMPTZ,
   end_time TIMESTAMPTZ,
-  duration DECIMAL(4,2),
+  duration DECIMAL(6,2),
   break_type TEXT DEFAULT 'lunch',
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -59,9 +59,16 @@ CREATE POLICY "Admins can manage all breaks"
 
 CREATE OR REPLACE FUNCTION calculate_break_duration()
 RETURNS TRIGGER AS $$
+DECLARE
+  raw_minutes NUMERIC(6,2);
 BEGIN
   IF NEW.start_time IS NOT NULL AND NEW.end_time IS NOT NULL THEN
-    NEW.duration := ROUND((DATE_PART('EPOCH', NEW.end_time - NEW.start_time) / 60.0)::numeric, 2);
+    raw_minutes := ROUND((DATE_PART('EPOCH', NEW.end_time - NEW.start_time) / 60.0)::numeric, 2);
+    NEW.duration := CASE
+      WHEN raw_minutes < 0 THEN 0
+      WHEN raw_minutes > 480 THEN 480
+      ELSE raw_minutes
+    END;
   ELSE
     NEW.duration := NULL;
   END IF;

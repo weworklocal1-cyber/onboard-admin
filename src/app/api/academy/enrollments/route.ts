@@ -1,14 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { requireAcademyAuth } from "@/lib/academy-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const token = request.headers.get("authorization")?.replace("Bearer ", "");
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { data: { user } } = await supabaseAdmin.auth.getUser(token);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await requireAcademyAuth(request);
 
   const { data: enrollments, error } = await supabaseAdmin
     .from("academy_enrollments")
@@ -30,15 +27,28 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const token = request.headers.get("authorization")?.replace("Bearer ", "");
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { data: { user } } = await supabaseAdmin.auth.getUser(token);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await requireAcademyAuth(request);
 
   const body = await request.json();
   const { course_id } = body as { course_id: string };
   if (!course_id) return NextResponse.json({ error: "course_id required" }, { status: 400 });
+
+  const { data: course } = await supabaseAdmin
+    .from("academy_courses")
+    .select("is_free, price")
+    .eq("id", course_id)
+    .single();
+
+  if (!course) {
+    return NextResponse.json({ error: "Course not found" }, { status: 404 });
+  }
+
+  if (!course.is_free && (course.price ?? 0) > 0) {
+    return NextResponse.json(
+      { error: "Payment required. Please purchase this course before enrolling.", requires_payment: true },
+      { status: 402 }
+    );
+  }
 
   const { data: existing } = await supabaseAdmin
     .from("academy_enrollments")

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
-import { ChevronLeft, ChevronRight, CheckCircle2, Clock, FileText, Download, BookOpen, Award } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, Clock, FileText, Download, BookOpen, Award, Shield } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import DOMPurify from "dompurify";
@@ -45,13 +45,15 @@ export default function LearningPlayerPage({ params }: { params: { slug: string;
   const [courseId, setCourseId] = useState<string | null>(null);
   const [completedCount, setCompletedCount] = useState(0);
   const [totalLessons, setTotalLessons] = useState(0);
-  const [enrollmentId, setEnrollmentId] = useState<string | null>(null);
+  const [_enrollmentId, setEnrollmentId] = useState<string | null>(null);
+  const [_courseIsFree, setCourseIsFree] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       const { data: course } = await supabase
         .from("academy_courses")
-        .select("id")
+        .select("id, is_free, slug")
         .eq("slug", params.slug)
         .single();
 
@@ -60,6 +62,29 @@ export default function LearningPlayerPage({ params }: { params: { slug: string;
         return;
       }
       setCourseId(course.id);
+      setCourseIsFree(course.is_free ?? true);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        window.location.href = "/academy/login";
+        return;
+      }
+
+      const { data: enrollmentData } = await supabase
+        .from("academy_enrollments")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("course_id", course.id)
+        .in("status", ["active", "completed"])
+        .maybeSingle();
+
+      if (enrollmentData) {
+        setEnrollmentId(enrollmentData.id);
+      } else if (!course.is_free) {
+        setAccessDenied(true);
+        setLoading(false);
+        return;
+      }
 
       const { data: modulesData } = await supabase
         .from("academy_modules")
@@ -209,6 +234,21 @@ export default function LearningPlayerPage({ params }: { params: { slug: string;
 
   if (loading) {
     return <div className="h-96 rounded-xl bg-gray-200 animate-pulse" />;
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="max-w-2xl mx-auto text-center py-12 space-y-4">
+        <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto">
+          <Shield className="h-8 w-8 text-red-500" />
+        </div>
+        <h1 className="text-2xl font-bold">Purchase Required</h1>
+        <p className="text-gray-500">You need to purchase this course before accessing the lessons.</p>
+        <Button className="bg-academy-primary hover:bg-academy-secondary" onClick={() => router.push(`/academy/courses/${params.slug}`)}>
+          View Course Details
+        </Button>
+      </div>
+    );
   }
 
   if (!currentLesson) {

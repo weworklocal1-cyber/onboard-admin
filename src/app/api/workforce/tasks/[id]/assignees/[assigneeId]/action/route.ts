@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { sendTaskEmail } from "../../../../email";
+import { logAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -181,6 +182,15 @@ export async function POST(
       new_value: { status: newTaskStatus, assignee_status: newAssigneeStatus },
       notes: historyNotes,
     });
+
+    await logAudit(
+      "task_status_change",
+      "tasks",
+      taskId,
+      { status: task.status },
+      { status: newTaskStatus },
+      sessionUser.id
+    );
 
     if (task.created_by && task.created_by !== sessionUser.id) {
       await supabaseAdmin.from("notifications").insert({

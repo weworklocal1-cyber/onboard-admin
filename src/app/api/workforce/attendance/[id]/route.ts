@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { logAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,15 @@ export async function PATCH(
       .single();
 
     if (error) throw error;
+
+    await logAudit(
+      "attendance_override",
+      "attendance",
+      params.id,
+      { status: existing.status },
+      { status, override_by: sessionUser.id, override_reason: reason || null },
+      sessionUser.id
+    );
 
     return NextResponse.json({ record: data });
   } catch (err: any) {
