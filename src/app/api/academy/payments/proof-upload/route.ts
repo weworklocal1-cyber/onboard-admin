@@ -19,13 +19,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const bytes = await file.arrayBuffer();
+    const fileBuffer = Buffer.from(await new Response(file).arrayBuffer());
     const fileName = `payment-proofs/${user.id}/${courseId}/${Date.now()}.jpg`;
     const contentType = file.type || "image/jpeg";
 
     const { error: uploadError } = await supabaseAdmin.storage
       .from("payment-proofs")
-      .upload(fileName, Buffer.from(bytes), {
+      .upload(fileName, fileBuffer, {
         contentType,
         upsert: false,
       });
