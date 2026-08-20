@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    let webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    let webhookSecret: string | null = process.env.RAZORPAY_WEBHOOK_SECRET || null;
 
     if (!webhookSecret) {
       try {

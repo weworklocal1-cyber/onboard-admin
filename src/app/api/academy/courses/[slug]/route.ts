@@ -15,7 +15,7 @@ export async function GET(
     if (authHeader) {
       try {
         const authResult = await requireAcademyAuth(request);
-        userId = authResult.userId;
+        userId = authResult.id;
       } catch {
         userId = null;
       }
