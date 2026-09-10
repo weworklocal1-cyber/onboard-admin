@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from './applicants.module.css';
-import { templates, type TemplateKey } from './MessageTemplates';
+import { templates as fallbackTemplates, type TemplateKey } from './MessageTemplates';
 
 type Application = {
   id: string;
@@ -24,15 +24,63 @@ type Props = {
   onStatusChange?: () => void;
 };
 
+type DbTemplate = { id: string; key: string; name: string; subject?: string | null; body: string; channel: string; tags: string[]; is_active: boolean };
+
 export default function ApplicantTable({ applications, onSend, onStatusChange }: Props) {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [dbTemplates, setDbTemplates] = useState<DbTemplate[] | null>(null);
+  const [waOpenId, setWaOpenId] = useState<string | null>(null);
 
-  const handleWhatsAppClick = async (app: Application) => {
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('adminAuthToken') : null;
+    const url = token ? '/api/admin/message-templates?category=applicants' : '/api/admin/message-templates/public?category=applicants';
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    fetch(url, { headers })
+      .then((r) => r.ok ? r.json() : null)
+      .then((j) => {
+        if (j?.templates) setDbTemplates(j.templates.filter((t: DbTemplate) => t.is_active));
+      })
+      .catch(() => {});
+  }, []);
+
+  const getDbTemplate = (key: TemplateKey): DbTemplate | null => {
+    if (!dbTemplates) return null;
+    return dbTemplates.find((t) => t.key === key) || null;
+  };
+
+  const applyTags = (body: string, app: Application, extra: Record<string, string> = {}): string => {
+    let text = body;
+    const map: Record<string, string> = {
+      "{{name}}": app.full_name,
+      "{{email}}": app.email,
+      "{{phone}}": app.phone || "",
+      "{{certificate_id}}": app.certificate_id || "",
+      "{{internship}}": extra.internship || "Mobile Application Development",
+      "{{course}}": extra.course || "Mobile Application Development",
+      "{{fee}}": extra.fee || "499",
+      "{{payment_link}}": extra.payment_link || `${typeof window !== 'undefined' ? window.location.origin : ""}/academy/courses`,
+      "{{playstore_link}}": extra.playstore_link || (process.env.NEXT_PUBLIC_PLAYSTORE_URL as string) || "https://play.google.com/store/apps/details?id=com.localwala.food",
+      "{{whatsapp_group_link}}": extra.whatsapp_group_link || "",
+      "{{city}}": extra.city || "",
+      ...Object.fromEntries(Object.entries(extra).map(([k, v]) => [`{{${k}}}`, v])),
+    };
+    for (const [tag, val] of Object.entries(map)) {
+      text = text.split(tag).join(val);
+    }
+    return text;
+  };
+
+  const handleWhatsAppClick = async (app: Application, templateKey?: string) => {
     if (!app.phone) return;
-    const tmpl = templates[getTemplateKey(app.status)];
-    let text = tmpl.body.replace(/{{name}}/g, app.full_name);
+    const key = (templateKey as TemplateKey) || getTemplateKey(app.status);
+    const dbTmpl = getDbTemplate(key);
+    const fallback = fallbackTemplates[key];
+    let text = dbTmpl ? dbTmpl.body : fallback.body;
 
-    if (app.status === 'confirmed') {
+    const extra: Record<string, string> = {};
+    // try to fetch whatsapp group link for confirmed
+    if (key === 'confirmed' || app.status === 'confirmed') {
       try {
         const token = typeof window !== 'undefined' ? sessionStorage.getItem('adminAuthToken') : null;
         const res = await fetch('/api/academy/cohorts/confirmed', {
@@ -40,18 +88,22 @@ export default function ApplicantTable({ applications, onSend, onStatusChange }:
         });
         if (res.ok) {
           const json = await res.json();
-          if (json.whatsappGroupLink) {
-            text += `\n\nJoin our WhatsApp group: ${json.whatsappGroupLink}`;
-          }
+          if (json.whatsappGroupLink) extra.whatsapp_group_link = json.whatsappGroupLink;
         }
-      } catch {
-        // ignore
-      }
+      } catch {}
     }
+    // Try to fetch payment link / fee from settings if available
+    try {
+      const res = await fetch('/api/admin/message-templates/public?category=applicants');
+      // fee could be stored in settings - fallback
+    } catch {}
+
+    text = applyTags(text, app, extra);
 
     const cleanPhone = app.phone.replace(/[^\d]/g, '');
     const href = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
     window.open(href, '_blank');
+    setWaOpenId(null);
   };
 
   const handleConfirm = async (app: Application) => {
@@ -102,12 +154,14 @@ export default function ApplicantTable({ applications, onSend, onStatusChange }:
     }
   };
 
-  const handleSendEmail = (app: Application) => {
-    const tmpl = templates[getTemplateKey(app.status)];
-    const subject = encodeURIComponent(tmpl.subject);
-    const body = encodeURIComponent(
-      tmpl.body.replace(/{{name}}/g, app.full_name)
-    );
+  const handleSendEmail = (app: Application, templateKey?: string) => {
+    const key = (templateKey as TemplateKey) || getTemplateKey(app.status);
+    const dbTmpl = getDbTemplate(key);
+    const fallback = fallbackTemplates[key];
+    const subjectRaw = dbTmpl?.subject || fallback.subject;
+    const bodyRaw = dbTmpl ? dbTmpl.body : fallback.body;
+    const subject = encodeURIComponent(applyTags(subjectRaw || "", app));
+    const body = encodeURIComponent(applyTags(bodyRaw, app));
     const mailto = `mailto:${app.email}?subject=${subject}&body=${body}`;
     window.open(mailto, '_blank');
     if (onSend) onSend(app);
@@ -163,9 +217,32 @@ export default function ApplicantTable({ applications, onSend, onStatusChange }:
                 <td>{new Date(app.created_at).toLocaleDateString()}</td>
                 <td>
                   {app.phone ? (
-                    <button className={styles.button} onClick={() => handleWhatsAppClick(app)}>
-                      WhatsApp
-                    </button>
+                    <div style={{ position: 'relative', display: 'inline-block' }}>
+                      <button className={styles.button} onClick={() => setWaOpenId(waOpenId === app.id ? null : app.id)}>
+                        WhatsApp {waOpenId === app.id ? '▲' : '▼'}
+                      </button>
+                      {waOpenId === app.id && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 10, background: 'white', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', padding: '8px', minWidth: '220px', marginTop: '6px' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Select Template:</div>
+                          {(dbTemplates && dbTemplates.length > 0 ? dbTemplates : Object.entries(fallbackTemplates).map(([k, v]) => ({ key: k, name: k, body: v.body, subject: v.subject } as any))).map((t: any) => (
+                            <button
+                              key={t.key}
+                              onClick={() => handleWhatsAppClick(app, t.key)}
+                              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: '8px', fontSize: '13px', color: '#374151', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = '#f3f4f6')}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                            >
+                              <span style={{ fontWeight: 600 }}>{t.name || t.key}</span>
+                              <span style={{ color: '#9ca3af', fontSize: '11px', marginLeft: '6px' }}>{t.key}</span>
+                              <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.body.slice(0, 60).replace(/\n/g, ' ')}...</div>
+                            </button>
+                          ))}
+                          <div style={{ borderTop: '1px solid #f3f4f6', marginTop: '6px', paddingTop: '6px' }}>
+                            <a href="/admin/applicants/templates" style={{ fontSize: '12px', color: '#7c3aed', fontWeight: 600, padding: '4px 8px', display: 'block' }}>⚙️ Manage Templates →</a>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <span style={{ color: '#888' }}>N/A</span>
                   )}
