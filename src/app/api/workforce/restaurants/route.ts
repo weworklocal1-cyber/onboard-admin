@@ -45,10 +45,15 @@ export async function GET(request: Request) {
   const pincodesParam = searchParams.get("pincodes");
   const cityParam = searchParams.get("city");
 
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
 
-  let googleResults = [];
-  if (lat && lng && apiKey) {
+  let googleResults: any[] = [];
+  let googleError: string | null = null;
+  if (lat && lng) {
+    if (!apiKey) {
+      googleError = "Google Maps API key not configured on server (NEXT_PUBLIC_GOOGLE_MAPS_API_KEY)";
+      console.warn(googleError);
+    } else {
     try {
       const radiusMeters = radius * 1000;
       const googleUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radiusMeters}&type=restaurant&key=${apiKey}`;
@@ -62,11 +67,13 @@ export async function GET(request: Request) {
           latitude: place.geometry?.location?.lat,
           longitude: place.geometry?.location?.lng,
           avg_rating: place.rating || 0,
+          review_count: place.user_ratings_total || 0,
           status: "new_lead",
           locality: place.vicinity || "",
           google_place_id: place.place_id,
+          pincode: null, // will be inferred on POST via territory
+          city: place.vicinity?.split(",").pop()?.trim() || "",
         }));
-        
         // Save to database - upsert with dedupe by google_place_id (requires unique index, handles race)
         for (const place of googleData.results) {
           const name = place.name;
@@ -100,10 +107,15 @@ export async function GET(request: Request) {
             console.error("Upsert failed for", placeId, upsertError.message);
           }
         }
+      } else if (googleData.status && googleData.status !== "ZERO_RESULTS") {
+        googleError = `Google Places ${googleData.status}: ${googleData.error_message || "check API key / Places API enabled / billing"}`;
+        console.error(googleError);
       }
     } catch (e) {
+      googleError = e instanceof Error ? e.message : String(e);
       console.error("Error fetching/saving Google Places:", e);
     }
+    } // close if apiKey else
   }
 
   // Territory isolation for onboarding_executive: only his pincodes/territory
@@ -197,11 +209,14 @@ export async function GET(request: Request) {
   // Enforce territory isolation for onboarding_executive on radius search
   if (execAllowedPincodes && execTerritoryIds) {
     const filteredExec = nearbyRestaurants.filter((r: any) => execAllowedPincodes!.has(r.pincode) || execTerritoryIds!.has(r.territory_id) || r.assigned_executive_id === sessionUser.id || !r.pincode);
-    // For exec with new territory (medchal 501401 empty), allow Google discovery fallback filtered to territory city if DB empty
+    // For exec with new territory (medchal 501401 empty), allow Google discovery fallback
     if (filteredExec.length === 0 && googleResults.length > 0) {
-      return NextResponse.json({ restaurants: googleResults });
+      return NextResponse.json({ restaurants: googleResults, source: "google", googleError });
     }
-    return NextResponse.json({ restaurants: filteredExec });
+    if (filteredExec.length === 0 && googleResults.length === 0) {
+      return NextResponse.json({ restaurants: [], googleError, hint: "No restaurants in your territory yet. Use Add Restaurant to create first lead for pincode 501401, or check Google API key / Places API enabled" });
+    }
+    return NextResponse.json({ restaurants: filteredExec, googleError });
   }
 
   // If we have Google results but no DB results, return Google results (admin/lead only)

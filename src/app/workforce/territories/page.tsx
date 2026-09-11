@@ -645,7 +645,15 @@ if (lat && lng) {
           {loadingRestaurants ? (
             <div className="text-xs text-gray-500">Searching...</div>
           ) : territoryRestaurants.length === 0 ? (
-            <p className="text-xs text-gray-500">No restaurants found. Click 🔍 to search nearby.</p>
+            <div className="space-y-2">
+              <p className="text-xs text-gray-500">No restaurants found in this territory.</p>
+              <p className="text-[11px] text-gray-400">For <span className="font-medium">{territory.name}</span> ({territory.pincodes?.join(", ") || territory.city}) - {(territory.pincodes?.length || 0) >0 ? "No DB rows with this pincode yet." : "Add pincode to enable filtering."} </p>
+              <div className="flex gap-2">
+                <a href="/workforce/restaurants" className="text-xs bg-brand-primary text-white px-2 py-1 rounded hover:bg-brand-primary/90">➕ Add Restaurant (pincode {territory.pincodes?.[0] || territory.city})</a>
+                <Button size="sm" variant="outline" className="h-6 text-xs" onClick={loadRestaurants}>🔍 Retry</Button>
+              </div>
+              <p className="text-[10px] text-amber-600">If Google discovery expected, check Vercel env NEXT_PUBLIC_GOOGLE_MAPS_API_KEY + Places API enabled. Check Network tab for /api/workforce/restaurants?lat&lng for googleError.</p>
+            </div>
           ) : (
             <div className="space-y-1 max-h-40 overflow-y-auto">
               {territoryRestaurants.map((r: any) => (
