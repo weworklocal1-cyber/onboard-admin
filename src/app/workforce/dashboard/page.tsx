@@ -63,12 +63,14 @@ function FounderDashboardView({ profile: _profile }: { profile: any }) {
     tasks: { urgent: 0, overdue: 0 },
     campaigns: { active: 0 }
   });
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
         const todayStr = format(new Date(), "yyyy-MM-dd");
+        const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
         const [
           { data: attendanceData },
@@ -76,12 +78,14 @@ function FounderDashboardView({ profile: _profile }: { profile: any }) {
           { data: taskData },
           { data: campaignData },
           { count: blockerCount },
+          { data: lbData },
         ] = await Promise.all([
           supabase.from("attendance").select("status").eq("date", todayStr),
           supabase.from("restaurants").select("status"),
           supabase.from("tasks").select("status, priority, due_date"),
           supabase.from("marketing_campaigns").select("status"),
           supabase.from("tasks").select("*", { count: "exact", head: true }).eq("status", "blocked"),
+          supabase.from("restaurants").select("assigned_executive_id, status, assigned_executive:profiles!restaurants_assigned_executive_id_fkey(full_name)").in("status", ["live", "onboarded"]).gte("live_at", startOfMonth).limit(100),
         ]);
 
         setStats({
@@ -109,6 +113,27 @@ function FounderDashboardView({ profile: _profile }: { profile: any }) {
             active: campaignData?.filter((c: any) => c.status === "active").length || 0,
           },
         });
+
+        // Leaderboard for Founder: monthly live conversions per exec (PRD 13.5)
+        let lbSource: any[] = (lbData as any) || [];
+        if (lbSource.length === 0) {
+          const { data: fallback } = await supabase.from("restaurants").select("assigned_executive_id, status, assigned_executive:profiles!restaurants_assigned_executive_id_fkey(full_name)").in("status", ["live", "onboarded"]).limit(100);
+          lbSource = (fallback as any) || [];
+        }
+        const map: Record<string, { count: number; name: string }> = {};
+        lbSource.forEach((r: any) => {
+          const id = r.assigned_executive_id; if (!id) return;
+          if (!map[id]) map[id] = { count: 0, name: r.assigned_executive?.full_name || "Exec" };
+          map[id].count += 1;
+        });
+        const entries = Object.entries(map).map(([id, v]) => ({ executive_id: id, conversions: v.count, full_name: v.name })).sort((a,b)=>b.conversions-a.conversions).slice(0,5);
+        if (entries.some(e => !e.full_name || e.full_name==="Exec")) {
+          const ids = entries.filter(e=>!e.full_name || e.full_name==="Exec").map(e=>e.executive_id);
+          const { data: profs } = await supabase.from("profiles").select("id, full_name").in("id", ids);
+          const m = new Map((profs||[]).map((p:any)=>[p.id,p.full_name]));
+          entries.forEach(e=>{ if(m.has(e.executive_id)) e.full_name=m.get(e.executive_id); });
+        }
+        setLeaderboard(entries);
       } catch (err: any) {
         console.error("Founder dashboard load error:", err.message);
       } finally {
@@ -207,6 +232,32 @@ function FounderDashboardView({ profile: _profile }: { profile: any }) {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-gray-200 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-gray-800 text-lg flex items-center gap-2"><Award className="h-5 w-5 text-amber-500" /> Executive Leaderboard (Monthly)</CardTitle>
+          <CardDescription>Live + Onboarded conversions per onboarding executive</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {leaderboard.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-6">No conversions this month • Assign territories to see ranking</p>
+          ) : (
+            <ol className="space-y-2">
+              {leaderboard.map((e: any, idx: number) => (
+                <li key={e.executive_id} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center ${idx===0?"bg-amber-100 text-amber-700": idx===1?"bg-slate-200 text-slate-700": idx===2?"bg-orange-100 text-orange-700":"bg-gray-100 text-gray-500"}`}>#{idx+1}</span>
+                    <span className="text-sm font-medium text-gray-800">{e.full_name}</span>
+                    {idx===0 && <span className="text-xs">🏆</span>}
+                  </div>
+                  <Badge className="bg-brand-primary text-white">{e.conversions} live</Badge>
+                </li>
+              ))}
+            </ol>
+          )}
+          <p className="text-[10px] text-gray-400 text-center mt-2">PRD 13.5 • Monthly • Updates live</p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -226,10 +277,11 @@ function OnboardingDashboardView({ profile }: { profile: any }) {
   useEffect(() => {
     const fetchOnboardingData = async () => {
       try {
+        const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
         const [
           { data: restaurants },
           { data: followups },
-          { data: lbData },
+          { data: liveRestaurants },
         ] = await Promise.all([
           supabase.from("restaurants").select("status").eq("assigned_executive_id", profile.id),
           supabase
@@ -240,20 +292,38 @@ function OnboardingDashboardView({ profile }: { profile: any }) {
             .order("scheduled_at", { ascending: true })
             .limit(4),
           supabase
-            .from("restaurant_interactions")
-            .select("executive_id, outcome, restaurant:restaurants!inner(status)")
-            .eq("outcome", "interested")
-            .limit(10),
+            .from("restaurants")
+            .select("assigned_executive_id, status, live_at, onboarded_at, assigned_executive:profiles!restaurants_assigned_executive_id_fkey(full_name)")
+            .in("status", ["live", "onboarded"])
+            .gte("live_at", startOfMonth)
+            .limit(100),
         ]);
 
-        const conversionMap: Record<string, number> = {};
-        lbData?.forEach((i: any) => {
-          conversionMap[i.executive_id] = (conversionMap[i.executive_id] || 0) + 1;
+        // Leaderboard: monthly live/onboarded conversions per executive (PRD 13.5)
+        const conversionMap: Record<string, { count: number; name: string }> = {};
+        // Fallback to onboarded_at if live_at null, use all if monthly filter returns 0
+        let lbSource: any[] = (liveRestaurants as any) || [];
+        if (lbSource.length === 0) {
+          const { data: fallback } = await supabase.from("restaurants").select("assigned_executive_id, status, assigned_executive:profiles!restaurants_assigned_executive_id_fkey(full_name)").in("status", ["live", "onboarded"]).limit(100);
+          lbSource = (fallback as any) || [];
+        }
+        lbSource.forEach((r: any) => {
+          const id = r.assigned_executive_id;
+          if (!id) return;
+          if (!conversionMap[id]) conversionMap[id] = { count: 0, name: r.assigned_executive?.full_name || "Teammate" };
+          conversionMap[id].count += 1;
         });
         const lbEntries = Object.entries(conversionMap)
-          .map(([id, conv]) => ({ executive_id: id, conversions: conv }))
+          .map(([id, v]) => ({ executive_id: id, conversions: v.count, full_name: v.name }))
           .sort((a, b) => b.conversions - a.conversions)
           .slice(0, 5);
+        // Fetch missing names if null
+        const missingIds = lbEntries.filter(e => !e.full_name || e.full_name === "Teammate").map(e => e.executive_id);
+        if (missingIds.length > 0) {
+          const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", missingIds);
+          const nameMap = new Map((profiles || []).map((p: any) => [p.id, p.full_name]));
+          lbEntries.forEach(e => { if (nameMap.has(e.executive_id)) e.full_name = nameMap.get(e.executive_id); });
+        }
         setLeaderboard(lbEntries);
 
         setStats({
@@ -372,17 +442,21 @@ function OnboardingDashboardView({ profile }: { profile: any }) {
             {leaderboard.length === 0 ? (
               <p className="text-sm text-gray-500 text-center py-4">No conversions recorded yet</p>
             ) : (
-              <ol className="space-y-2">
-                {leaderboard.map((entry, idx) => (
-                  <li key={entry.executive_id} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-bold ${idx === 0 ? "text-amber-600" : "text-gray-500"}`}>#{idx + 1}</span>
-                      <span className="text-sm font-medium text-gray-800">{entry.executive_id === profile.id ? "You" : "Teammate"}</span>
-                    </div>
-                    <Badge className="bg-brand-primary text-white font-semibold">{entry.conversions} conversions</Badge>
-                  </li>
-                ))}
-              </ol>
+              <>
+                <ol className="space-y-2">
+                  {leaderboard.map((entry, idx) => (
+                    <li key={entry.executive_id} className={`flex items-center justify-between px-3 py-2 rounded-lg ${entry.executive_id === profile.id ? "bg-brand-primary/10 border border-brand-primary/20" : "bg-gray-50"}`}>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center ${idx === 0 ? "bg-amber-100 text-amber-700" : idx === 1 ? "bg-slate-200 text-slate-700" : idx === 2 ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-500"}`}>#{idx + 1}</span>
+                        <span className="text-sm font-medium text-gray-800">{entry.executive_id === profile.id ? "You" : entry.full_name || "Teammate"}</span>
+                        {idx === 0 && <span className="text-xs">🏆</span>}
+                      </div>
+                      <Badge className={`${entry.executive_id === profile.id ? "bg-brand-primary" : "bg-slate-700"} text-white font-semibold`}>{entry.conversions} live</Badge>
+                    </li>
+                  ))}
+                </ol>
+                <p className="text-[10px] text-gray-400 text-center mt-2">Monthly live/onboarded • Updates live</p>
+              </>
             )}
           </CardContent>
         </Card>

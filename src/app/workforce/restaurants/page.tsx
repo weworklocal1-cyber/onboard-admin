@@ -472,7 +472,13 @@ function RestaurantCard({ restaurant, executives, selected, onToggleSelect }: { 
         body: JSON.stringify({ assigned_executive_id: executiveId === "unassign" ? null : executiveId }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to assign executive");
+      if (!res.ok) {
+        if (res.status === 409 && (result as any).conflict) {
+          toast.error((result as any).error || "Territory conflict: restaurant belongs to another executive's territory");
+          return;
+        }
+        throw new Error(result.error || "Failed to assign executive");
+      }
       toast.success("Executive assigned!");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to assign");

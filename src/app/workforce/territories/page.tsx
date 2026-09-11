@@ -73,6 +73,7 @@ export default function TerritoriesPage() {
   const [radiusKm, setRadiusKm] = useState(10);
   const [nearbyRestaurants, setNearbyRestaurants] = useState<any[]>([]);
   const markersRef = useRef<any[]>([]);
+  const polygonRef = useRef<any>(null);
 
   useEffect(() => {
     if (!profile) return;
@@ -106,12 +107,37 @@ export default function TerritoriesPage() {
       mapTypeId: window.google.maps.MapTypeId.ROADMAP,
     });
 
-// Click to set territory center and auto-fetch pincodes
+// Click to build polygon (PRD 18.1: polygon_coords) - each click adds vertex, single click still sets center
+    let clickCount = 0;
     window.google.maps.event.addListener(map, "click", (event: any) => {
       const lat = event.latLng.lat();
       const lng = event.latLng.lng();
+      clickCount++;
       
-      setNewTerritory(prev => ({ ...prev, polygon_coords: [{ lat, lng }] }));
+      setNewTerritory(prev => {
+        const existing = prev.polygon_coords || [];
+        // First click replaces, subsequent appends to build polygon (up to 20 points)
+        const next = existing.length === 0 ? [{ lat, lng }] : [...existing, { lat, lng }].slice(0, 20);
+        // Draw/update polygon overlay
+        setTimeout(() => {
+          if (polygonRef.current) polygonRef.current.setMap(null);
+          if (next.length >= 3) {
+            polygonRef.current = new window.google.maps.Polygon({
+              paths: next,
+              strokeColor: "#FF6B35",
+              strokeOpacity: 0.8,
+              strokeWeight: 2,
+              fillColor: "#FF6B35",
+              fillOpacity: 0.15,
+              map,
+            });
+          } else if (next.length === 1) {
+            // Single point: show marker
+            new window.google.maps.Marker({ position: { lat, lng }, map, title: "Territory center" });
+          }
+        }, 0);
+        return { ...prev, polygon_coords: next };
+      });
       
       const addMarkers = (restaurants: any[]) => {
         markersRef.current.forEach(m => m.setMap(null));
@@ -472,7 +498,15 @@ const components = results[0].address_components;
               {GOOGLE_MAPS_API_KEY && (
                 <div className="space-y-1.5">
                   <div id="territory-map-new" className="h-64 w-full rounded-lg border" />
-                  <p className="text-xs text-gray-500">Click on map to set territory location, or use search/current location above</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gray-500">Click to add polygon vertices ({newTerritory.polygon_coords?.length || 0} points). First click is center, 3+ forms boundary.</p>
+                    {(newTerritory.polygon_coords?.length || 0) > 0 && (
+                      <Button type="button" variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { setNewTerritory(prev=>({...prev, polygon_coords: []})); if(polygonRef.current) polygonRef.current.setMap(null); }}>Clear</Button>
+                    )}
+                  </div>
+                  {(newTerritory.polygon_coords?.length || 0) > 0 && (
+                    <p className="text-[10px] text-brand-primary">{newTerritory.polygon_coords!.length} vertices • {newTerritory.polygon_coords!.length >=3 ? "Polygon ready" : "Click 2 more for polygon"}</p>
+                  )}
                 </div>
               )}
 
@@ -593,7 +627,13 @@ if (lat && lng) {
       });
 
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to assign");
+      if (!res.ok) {
+        if (res.status === 409 && (result as any).conflict) {
+          toast.error((result as any).error || "Territory conflict");
+          return;
+        }
+        throw new Error(result.error || "Failed to assign");
+      }
       toast.success("Executive assigned!");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to assign");

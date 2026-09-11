@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
-import { isAdmin } from "@/lib/permissions";
+import { isAdmin, canAccessRestaurantCRM } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,8 @@ export async function PATCH(request: Request) {
   }
 
   const userIsAdmin = await isAdmin(sessionUser.role);
-  if (!userIsAdmin) {
+  const canCRM = await canAccessRestaurantCRM(sessionUser.role);
+  if (!userIsAdmin && !canCRM) {
     return NextResponse.json({ error: "Forbidden - Admin access required" }, { status: 403 });
   }
 
@@ -41,6 +42,18 @@ export async function PATCH(request: Request) {
 
     if (!territoryId) {
       return NextResponse.json({ error: "Territory ID required" }, { status: 400 });
+    }
+
+    // Fetch current for transfer logic
+    const { data: current } = await supabaseAdmin.from("territories").select("assigned_executive_id").eq("id", territoryId).single();
+    const currentExec = (current as any)?.assigned_executive_id || null;
+    const newExec = body.assigned_executive_id ?? null;
+
+    // If territory already assigned to different exec and requester is NOT admin, require approval via territory_transfers (PRD 18.3)
+    if (currentExec && newExec && currentExec !== newExec && !userIsAdmin) {
+      const { data: pending } = await supabaseAdmin.from("territory_transfers").insert({ territory_id: territoryId, from_executive_id: currentExec, to_executive_id: newExec, requested_by: sessionUser.id, status: "pending" }).select("*").single();
+      await logAudit("territory_transfer_requested", "territories", territoryId, { from: currentExec }, { to: newExec }, sessionUser.id);
+      return NextResponse.json({ success: true, pending: true, transfer: pending, message: "Transfer request created - pending HR/Founder approval" }, { status: 202 });
     }
 
     const { data, error } = await supabaseAdmin

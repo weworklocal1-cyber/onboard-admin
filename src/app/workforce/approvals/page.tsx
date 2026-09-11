@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import Link from "next/link";
-import { CheckCircle2, XCircle, Clock, FileText, ClipboardList, Receipt } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, FileText, ClipboardList, Receipt, MapPin } from "lucide-react";
 
 interface LeaveRequest {
   id: string;
@@ -46,12 +46,28 @@ interface Task {
   creator?: { full_name: string };
 }
 
+interface TerritoryTransfer {
+  id: string;
+  territory_id: string;
+  from_executive_id: string | null;
+  to_executive_id: string;
+  requested_by: string;
+  reason: string | null;
+  status: string;
+  created_at: string;
+  territory?: { name: string; city: string };
+  from?: { full_name: string };
+  to?: { full_name: string };
+  requester?: { full_name: string };
+}
+
 export default function ApprovalsPage() {
   const { profile, loading } = useAuth();
   const supabase = createClient();
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [transfers, setTransfers] = useState<TerritoryTransfer[]>([]);
   const [fetching, setFetching] = useState(true);
   const [activeTab, setActiveTab] = useState("leaves");
   const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
@@ -70,10 +86,11 @@ export default function ApprovalsPage() {
       const { data: { session } } = await supabase.auth.getSession();
       const headers = { Authorization: `Bearer ${session?.access_token}` };
 
-      const [leavesRes, expensesRes, tasksRes] = await Promise.all([
+      const [leavesRes, expensesRes, tasksRes, transfersRes] = await Promise.all([
         fetch("/api/workforce/hcm/leaves?status=pending", { headers }),
         fetch("/api/workforce/expenses?status=pending", { headers }),
         fetch("/api/workforce/tasks?requires_approval=true", { headers }),
+        fetch("/api/workforce/territory-transfers?status=pending", { headers }),
       ]);
 
       if (leavesRes.ok) {
@@ -88,6 +105,10 @@ export default function ApprovalsPage() {
         const json = await tasksRes.json();
         setTasks(json.tasks || []);
       }
+      if (transfersRes.ok) {
+        const json = await transfersRes.json();
+        setTransfers(json.transfers || []);
+      }
     } catch (err) {
       console.error("Error fetching approvals:", err);
       toast.error("Failed to load approvals");
@@ -96,7 +117,7 @@ export default function ApprovalsPage() {
     }
   };
 
-  const handleApprove = async (type: "leave" | "expense" | "task", id: string) => {
+  const handleApprove = async (type: "leave" | "expense" | "task" | "transfer", id: string) => {
     setSubmitting(id);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -110,6 +131,8 @@ export default function ApprovalsPage() {
         res = await fetch(`/api/workforce/hcm/leaves/${id}/approve`, { method: "PATCH", headers });
       } else if (type === "expense") {
         res = await fetch(`/api/workforce/expenses/${id}/approve`, { method: "PATCH", headers });
+      } else if (type === "transfer") {
+        res = await fetch(`/api/workforce/territory-transfers/${id}`, { method: "PATCH", headers, body: JSON.stringify({ action: "approve" }) });
       } else {
         res = await fetch(`/api/workforce/tasks/${id}`, {
           method: "POST",
@@ -131,7 +154,7 @@ export default function ApprovalsPage() {
     setSubmitting(null);
   };
 
-  const handleReject = async (type: "leave" | "expense" | "task", id: string) => {
+  const handleReject = async (type: "leave" | "expense" | "task" | "transfer", id: string) => {
     const reason = rejectReason[id] || "";
     setSubmitting(id);
     try {
@@ -154,6 +177,8 @@ export default function ApprovalsPage() {
           headers,
           body: JSON.stringify({ rejection_reason: reason || "No reason provided" }),
         });
+      } else if (type === "transfer") {
+        res = await fetch(`/api/workforce/territory-transfers/${id}`, { method: "PATCH", headers, body: JSON.stringify({ action: "reject", reason }) });
       } else {
         res = await fetch(`/api/workforce/tasks/${id}`, {
           method: "POST",
@@ -198,7 +223,7 @@ export default function ApprovalsPage() {
     );
   }
 
-  const pendingCount = leaves.length + expenses.length + tasks.length;
+  const pendingCount = leaves.length + expenses.length + tasks.length + transfers.length;
 
   return (
     <div className="space-y-6">
@@ -232,6 +257,10 @@ export default function ApprovalsPage() {
             <TabsTrigger value="tasks" className="gap-2">
               <ClipboardList className="h-4 w-4" /> Tasks
               {tasks.length > 0 && <Badge variant="secondary" className="ml-1">{tasks.length}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="transfers" className="gap-2">
+              <MapPin className="h-4 w-4" /> Territory Transfers
+              {transfers.length > 0 && <Badge variant="secondary" className="ml-1 bg-amber-100 text-amber-700">{transfers.length}</Badge>}
             </TabsTrigger>
           </TabsList>
 
@@ -385,6 +414,39 @@ export default function ApprovalsPage() {
                           >
                             <XCircle className="h-4 w-4 mr-1" /> Reject
                           </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="transfers" className="space-y-4">
+            {transfers.length === 0 ? (
+              <EmptyState title="No pending territory transfers" description="Territory re-assignments requiring HR/Founder approval will appear here." />
+            ) : (
+              <div className="grid gap-4">
+                {transfers.map((t) => (
+                  <Card key={t.id} className="border-amber-200 shadow-sm bg-amber-50/20">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <MapPin className="h-4 w-4 text-amber-600" />
+                            <p className="font-semibold text-gray-900">{t.territory?.name} • {t.territory?.city}</p>
+                            <Badge variant="outline" className="text-[10px]">Transfer</Badge>
+                          </div>
+                          <p className="text-sm text-gray-700">
+                            {t.from?.full_name || "Unassigned"} <span className="text-gray-400">→</span> <span className="font-semibold text-brand-primary">{t.to?.full_name}</span>
+                          </p>
+                          <p className="text-xs text-gray-500">Requested by {t.requester?.full_name} on {format(new Date(t.created_at), "MMM d, yyyy")}</p>
+                          {t.reason && <p className="text-xs text-gray-600 italic mt-1">Reason: {t.reason}</p>}
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApprove("transfer", t.id)} disabled={submitting === t.id}><CheckCircle2 className="h-4 w-4 mr-1" /> Approve</Button>
+                          <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => handleReject("transfer", t.id)} disabled={submitting === t.id}><XCircle className="h-4 w-4 mr-1" /> Reject</Button>
                         </div>
                       </div>
                     </CardContent>

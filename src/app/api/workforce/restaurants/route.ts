@@ -325,8 +325,31 @@ export async function POST(request: Request) {
         }
       }
     } else if (latitude && longitude) {
-      // Fallback: try to find territory by city if pincode missing (less precise)
-      // No conflict check without pincode
+      // Fallback: point-in-territory via nearest territory center (approx) if pincode missing
+      const { data: territories } = await supabaseAdmin.from("territories").select("id, city, assigned_executive_id, polygon_coords").not("polygon_coords", "is", null);
+      if (territories && territories.length > 0) {
+        let nearest: any = null;
+        let minDist = Infinity;
+        for (const t of territories as any[]) {
+          const coords = t.polygon_coords;
+          if (Array.isArray(coords) && coords[0]?.lat && coords[0]?.lng) {
+            const dLat = latitude - coords[0].lat;
+            const dLng = longitude - coords[0].lng;
+            const dist = Math.sqrt(dLat*dLat + dLng*dLng);
+            if (dist < minDist) {
+              minDist = dist;
+              nearest = t;
+            }
+          }
+        }
+        // If within ~5km (0.05 deg approx) assign to nearest
+        if (nearest && minDist < 0.05) {
+          insertData.territory_id = nearest.id;
+          if (nearest.assigned_executive_id && !insertData.assigned_executive_id) {
+            insertData.assigned_executive_id = nearest.assigned_executive_id;
+          }
+        }
+      }
     }
 
     const { data, error } = await supabaseAdmin
