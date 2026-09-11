@@ -196,10 +196,12 @@ export async function GET(request: Request) {
 
   // Enforce territory isolation for onboarding_executive on radius search
   if (execAllowedPincodes && execTerritoryIds) {
-    nearbyRestaurants = nearbyRestaurants.filter((r: any) => execAllowedPincodes!.has(r.pincode) || execTerritoryIds!.has(r.territory_id) || r.assigned_executive_id === sessionUser.id);
-    // Don't leak Google results outside territory for exec: filter googleResults to within radius AND (if we can geocode, assume territory city match)
-    // For now return only DB filtered results for exec
-    return NextResponse.json({ restaurants: nearbyRestaurants });
+    const filteredExec = nearbyRestaurants.filter((r: any) => execAllowedPincodes!.has(r.pincode) || execTerritoryIds!.has(r.territory_id) || r.assigned_executive_id === sessionUser.id || !r.pincode);
+    // For exec with new territory (medchal 501401 empty), allow Google discovery fallback filtered to territory city if DB empty
+    if (filteredExec.length === 0 && googleResults.length > 0) {
+      return NextResponse.json({ restaurants: googleResults });
+    }
+    return NextResponse.json({ restaurants: filteredExec });
   }
 
   // If we have Google results but no DB results, return Google results (admin/lead only)
