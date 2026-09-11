@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
-import { isAdmin, canAccessRestaurantCRM } from "@/lib/permissions";
+import { isAdmin } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status") || "pending";
-  let q = supabaseAdmin.from("territory_transfers").select("*, territory:territories(name, city), from:profiles!territory_transfers_from_executive_id_fkey(full_name), to:profiles!territory_transfers_to_executive_id_fkey(full_name), requester:profiles!territory_transfers_requested_by_fkey(full_name)").eq("status", status).order("created_at", { ascending: false });
+  const q = supabaseAdmin.from("territory_transfers").select("*, territory:territories(name, city), from:profiles!territory_transfers_from_executive_id_fkey(full_name), to:profiles!territory_transfers_to_executive_id_fkey(full_name), requester:profiles!territory_transfers_requested_by_fkey(full_name)").eq("status", status).order("created_at", { ascending: false });
   const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ transfers: data || [] });
