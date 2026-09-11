@@ -47,6 +47,19 @@ export async function GET(request: Request) {
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
 
+  // Pre-fetch exec territory for isolation + auto-assign (needed before Google save)
+  let execAllowedPincodes: Set<string> | null = null;
+  let execTerritoryIds: Set<string> | null = null;
+  let execPrimaryTerritory: any = null;
+  if (sessionUser.role === "onboarding_executive") {
+    const { data: myTerritories } = await supabaseAdmin.from("territories").select("id, pincodes, city").eq("assigned_executive_id", sessionUser.id);
+    if (myTerritories && myTerritories.length > 0) {
+      execTerritoryIds = new Set(myTerritories.map((t: any) => t.id));
+      execAllowedPincodes = new Set(myTerritories.flatMap((t: any) => t.pincodes || []));
+      execPrimaryTerritory = myTerritories[0];
+    }
+  }
+
   let googleResults: any[] = [];
   let googleError: string | null = null;
   if (lat && lng) {
@@ -71,8 +84,10 @@ export async function GET(request: Request) {
           status: "new_lead",
           locality: place.vicinity || "",
           google_place_id: place.place_id,
-          pincode: null, // will be inferred on POST via territory
-          city: place.vicinity?.split(",").pop()?.trim() || "",
+          pincode: execPrimaryTerritory?.pincodes?.[0] || null,
+          city: execPrimaryTerritory?.city || place.vicinity?.split(",").pop()?.trim() || "",
+          territory_id: execPrimaryTerritory?.id || null,
+          assigned_executive_id: execPrimaryTerritory ? sessionUser.id : null,
         }));
         // Save to database - upsert with dedupe by google_place_id (requires unique index, handles race)
         for (const place of googleData.results) {
@@ -86,21 +101,28 @@ export async function GET(request: Request) {
           
           if (!placeId) continue;
           
-          // Atomic upsert - prevents 48x duplicates from concurrent GETs
+          // Atomic upsert - prevents 48x duplicates; for onboarding_exec auto-assign to his territory so RLS shows it in Restaurants page (fixes medchal empty)
+          const upsertPayload: any = {
+            name,
+            google_place_id: placeId,
+            latitude: plat,
+            longitude: plng,
+            avg_rating: rating,
+            review_count: reviewCount,
+            address,
+            locality: address,
+            lead_source: "google_maps",
+            status: "new_lead"
+          };
+          if (execPrimaryTerritory) {
+            upsertPayload.territory_id = execPrimaryTerritory.id;
+            upsertPayload.pincode = execPrimaryTerritory.pincodes?.[0] || null;
+            upsertPayload.city = execPrimaryTerritory.city || upsertPayload.city;
+            upsertPayload.assigned_executive_id = sessionUser.id;
+          }
           const { error: upsertError } = await supabaseAdmin
             .from("restaurants")
-            .upsert({
-              name,
-              google_place_id: placeId,
-              latitude: plat,
-              longitude: plng,
-              avg_rating: rating,
-              review_count: reviewCount,
-              address,
-              locality: address,
-              lead_source: "google_maps",
-              status: "new_lead"
-            }, { onConflict: "google_place_id", ignoreDuplicates: true });
+            .upsert(upsertPayload, { onConflict: "google_place_id", ignoreDuplicates: false });
           
           // Fallback for DBs without unique index yet: try insert, ignore duplicate race
           if (upsertError && upsertError.code !== '23505') {
@@ -118,16 +140,9 @@ export async function GET(request: Request) {
     } // close if apiKey else
   }
 
-  // Territory isolation for onboarding_executive: only his pincodes/territory
-  let execAllowedPincodes: Set<string> | null = null;
-  let execTerritoryIds: Set<string> | null = null;
-  if (sessionUser.role === "onboarding_executive") {
-    const { data: myTerritories } = await supabaseAdmin.from("territories").select("id, pincodes").eq("assigned_executive_id", sessionUser.id);
-    if (!myTerritories || myTerritories.length === 0) {
-      return NextResponse.json({ restaurants: [], message: "No territory assigned to you" });
-    }
-    execTerritoryIds = new Set(myTerritories.map((t: any) => t.id));
-    execAllowedPincodes = new Set(myTerritories.flatMap((t: any) => t.pincodes || []));
+  // Reuse pre-fetched exec territory (computed before Google fetch)
+  if (sessionUser.role === "onboarding_executive" && !execTerritoryIds) {
+    return NextResponse.json({ restaurants: [], message: "No territory assigned to you" });
   }
 
   if (!lat || !lng) {
