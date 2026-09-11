@@ -189,7 +189,7 @@ export async function GET(request: Request) {
   }
 
   // Filter by radius
-  let nearbyRestaurants = (restaurants || []).filter((r: any) => {
+  const nearbyRestaurants = (restaurants || []).filter((r: any) => {
     if (!r.latitude || !r.longitude) return false;
     return getDistanceFromLatLonInKm(lat, lng, r.latitude, r.longitude) <= radius;
   });
