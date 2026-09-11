@@ -677,18 +677,24 @@ if (lat && lng) {
             </div>
           )}
         </div>
-        {userIsAdmin && executives.length > 0 && (
-          <select
-            value={territory.assigned_executive_id || ""}
-            onChange={e => handleAssignExecutive(e.target.value)}
-            disabled={updating}
-            className="text-xs px-2 py-1 rounded border bg-white mt-1 w-full"
-          >
-            <option value="">Assign Executive...</option>
-{executives.map((exec) => (
-              <option key={exec.id} value={exec.id}>{exec.full_name}</option>
-            ))}
-          </select>
+        {userIsAdmin && (
+          executives.length > 0 ? (
+            <select
+              value={territory.assigned_executive_id || ""}
+              onChange={e => handleAssignExecutive(e.target.value)}
+              disabled={updating}
+              className="text-xs px-2 py-1 rounded border bg-white mt-1 w-full"
+            >
+              <option value="">Assign Executive...</option>
+              {executives.map((exec) => (
+                <option key={exec.id} value={exec.id}>{exec.full_name}</option>
+              ))}
+            </select>
+          ) : (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mt-1">
+              No onboarding executives found. <a href="/workforce/employees" className="underline font-medium">Create one</a> with role `onboarding_executive`.
+            </p>
+          )
         )}
         {territory.assigned_executive && (
           <p className="text-xs text-brand-primary pt-1">

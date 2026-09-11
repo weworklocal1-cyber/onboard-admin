@@ -67,7 +67,7 @@ export async function GET(request: Request) {
           google_place_id: place.place_id,
         }));
         
-        // Save to database
+        // Save to database - upsert with dedupe by google_place_id (requires unique index, handles race)
         for (const place of googleData.results) {
           const name = place.name;
           const placeId = place.place_id;
@@ -79,27 +79,25 @@ export async function GET(request: Request) {
           
           if (!placeId) continue;
           
-          const { data: existing } = await supabaseAdmin
+          // Atomic upsert - prevents 48x duplicates from concurrent GETs
+          const { error: upsertError } = await supabaseAdmin
             .from("restaurants")
-            .select("id")
-            .eq("google_place_id", placeId)
-            .maybeSingle();
-            
-          if (!existing) {
-            await supabaseAdmin
-              .from("restaurants")
-              .insert({
-                name,
-                google_place_id: placeId,
-                latitude: plat,
-                longitude: plng,
-                avg_rating: rating,
-                review_count: reviewCount,
-                address,
-                locality: address,
-                lead_source: "google_maps",
-                status: "new_lead"
-              });
+            .upsert({
+              name,
+              google_place_id: placeId,
+              latitude: plat,
+              longitude: plng,
+              avg_rating: rating,
+              review_count: reviewCount,
+              address,
+              locality: address,
+              lead_source: "google_maps",
+              status: "new_lead"
+            }, { onConflict: "google_place_id", ignoreDuplicates: true });
+          
+          // Fallback for DBs without unique index yet: try insert, ignore duplicate race
+          if (upsertError && upsertError.code !== '23505') {
+            console.error("Upsert failed for", placeId, upsertError.message);
           }
         }
       }
@@ -212,6 +210,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Restaurant name is required" }, { status: 400 });
     }
 
+    // --- Dedupe on manual create ---
+    // 1) If google_place_id provided, dedupe by it
+    const incomingPlaceId = (body as any).google_place_id?.trim();
+    if (incomingPlaceId) {
+      const { data: existingByPlaceId } = await supabaseAdmin.from("restaurants").select("*").eq("google_place_id", incomingPlaceId).maybeSingle();
+      if (existingByPlaceId) {
+        return NextResponse.json({ success: true, restaurant: existingByPlaceId, deduped: true, message: "Restaurant already exists (same Google Place ID) - returned existing" });
+      }
+    }
+    // 2) Dedupe by normalized name + phone + city (prevents field_visit duplicates)
+    const normalizedName = name.trim().toLowerCase();
+    const normalizedPhone = owner_phone?.trim() || null;
+    if (normalizedPhone) {
+      const { data: existingByPhone } = await supabaseAdmin.from("restaurants").select("*").ilike("name", name.trim()).eq("owner_phone", normalizedPhone).eq("city", (city?.trim() || "Indore")).maybeSingle();
+      if (existingByPhone) {
+        return NextResponse.json({ success: false, error: "Duplicate: restaurant with same name and phone already exists in this city", existing: existingByPhone }, { status: 409 });
+      }
+    } else {
+      // Fallback: name + locality + city fuzzy dedupe (exact match)
+      const normLocality = locality?.trim() || null;
+      if (normLocality) {
+        const { data: existingByLocality } = await supabaseAdmin.from("restaurants").select("*").ilike("name", name.trim()).ilike("locality", normLocality).eq("city", (city?.trim() || "Indore")).maybeSingle();
+        if (existingByLocality) {
+          return NextResponse.json({ success: false, error: "Duplicate: restaurant with same name and locality already exists", existing: existingByLocality }, { status: 409 });
+        }
+      }
+    }
+
     const insertData: Record<string, any> = {
       name: name.trim(),
       owner_name: owner_name?.trim() || null,
@@ -230,6 +256,18 @@ export async function POST(request: Request) {
 
     if (assign_to_self && !(await isAdminRole(sessionUser.role))) {
       insertData.assigned_executive_id = sessionUser.id;
+    }
+
+    // Auto-assign territory_id based on pincode so exec sees only assigned territory restaurants
+    if (insertData.pincode) {
+      const { data: matchedTerritory } = await supabaseAdmin.from("territories").select("id, assigned_executive_id").contains("pincodes", [insertData.pincode]).maybeSingle();
+      if (matchedTerritory) {
+        insertData.territory_id = (matchedTerritory as any).id;
+        // If territory already assigned and no explicit executive, inherit territory's exec
+        if ((matchedTerritory as any).assigned_executive_id && !insertData.assigned_executive_id) {
+          insertData.assigned_executive_id = (matchedTerritory as any).assigned_executive_id;
+        }
+      }
     }
 
     const { data, error } = await supabaseAdmin

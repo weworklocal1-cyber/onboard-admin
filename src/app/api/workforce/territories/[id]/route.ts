@@ -54,6 +54,30 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // If executive assigned, bulk-link restaurants in that territory's pincodes
+    // so onboarding_executive sees only assigned territory restaurants (RLS requires territory_id or pincode match)
+    if (body.assigned_executive_id !== undefined) {
+      const { data: terr } = await supabaseAdmin.from("territories").select("pincodes").eq("id", territoryId).single();
+      const pincodes: string[] | null = (terr as any)?.pincodes || null;
+      if (body.assigned_executive_id) {
+        // Assign: set territory_id and assigned_executive_id for restaurants whose pincode in territory
+        if (pincodes && pincodes.length > 0) {
+          await supabaseAdmin.from("restaurants").update({ territory_id: territoryId, assigned_executive_id: body.assigned_executive_id }).in("pincode", pincodes);
+        } else {
+          // No pincodes defined: still set territory_id for unassigned restaurants in same city (fallback)
+          // Skip if pincodes empty to avoid mass assign
+        }
+      } else {
+        // Unassign: clear executive from restaurants in this territory (keep territory_id)
+        if (pincodes && pincodes.length > 0) {
+          await supabaseAdmin.from("restaurants").update({ assigned_executive_id: null }).eq("territory_id", territoryId);
+          await supabaseAdmin.from("restaurants").update({ assigned_executive_id: null }).in("pincode", pincodes).is("territory_id", null);
+        } else {
+          await supabaseAdmin.from("restaurants").update({ assigned_executive_id: null }).eq("territory_id", territoryId);
+        }
+      }
+    }
+
     await logAudit(
       "territory_update",
       "territories",
