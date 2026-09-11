@@ -24,35 +24,9 @@ function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon
   return R * c;
 }
 
-// Fetch restaurants directly from Google Places API (fallback)
-async function fetchNearbyRestaurantsFromGoogle(lat: number, lng: number, radius: number): Promise<any[]> {
-  try {
-    const radiusMeters = Math.min(radius * 1000, 50000); // Max 50km
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radiusMeters}&type=restaurant&key=${GOOGLE_MAPS_API_KEY}`
-    );
-    const data = await response.json();
-    
-    if (data.status === "REQUEST_DENIED") {
-      throw new Error("REQUEST_DENIED");
-    }
-    
-    if (data.status === "OK" && Array.isArray(data.results)) {
-      return data.results.map((place: any) => ({
-        id: place.place_id,
-        name: place.name,
-        latitude: place.geometry?.location?.lat,
-        longitude: place.geometry?.location?.lng,
-        avg_rating: place.rating || 0,
-        status: "new_lead",
-        locality: place.vicinity || "",
-      }));
-    }
-    return [];
-  } catch (e) {
-    throw e;
-  }
-}
+// Removed direct Google Places fetch (CORS blocked in browser).
+// All Google Places calls now go via server proxy /api/workforce/restaurants?lat&lng which uses server-side GOOGLE_MAPS_API_KEY.
+// Fallback removed per CORS fix - see src/app/api/workforce/restaurants/route.ts:50
 
 export default function TerritoriesPage() {
   const { profile, loading } = useAuth();
@@ -160,17 +134,11 @@ export default function TerritoriesPage() {
       };
       
       fetchNearbyRestaurants(lat, lng).then(restaurants => {
-        if (restaurants.length === 0 && GOOGLE_MAPS_API_KEY) {
-          fetchNearbyRestaurantsFromGoogle(lat, lng, radiusKm).then(googleRestaurants => {
-            setNearbyRestaurants(googleRestaurants);
-            addMarkers(googleRestaurants);
-          }).catch(e => {
-            console.error("Direct Google Places fetch failed:", e);
-            addMarkers([]);
-          });
-        } else {
-          addMarkers(restaurants);
-        }
+        // Server proxy already tried Google Places via /api/workforce/restaurants?lat&lng; no client fallback needed (CORS)
+        addMarkers(restaurants);
+      }).catch(e => {
+        console.error("Fetch nearby restaurants failed:", e);
+        addMarkers([]);
       });
 
       const geocoder = new window.google.maps.Geocoder();
@@ -555,26 +523,14 @@ if (lat && lng) {
              headers: { Authorization: `Bearer ${session?.access_token}` },
            });
            const json = await res.json();
-           if (json.restaurants && json.restaurants.length > 0) {
-             setTerritoryRestaurants(json.restaurants.slice(0, 10));
-             setLoadingRestaurants(false);
-             return;
-           }
-           
-           if (GOOGLE_MAPS_API_KEY) {
-             try {
-               const googleResults = await fetchNearbyRestaurantsFromGoogle(lat, lng, 5);
-               if (googleResults.length > 0) {
-                 setTerritoryRestaurants(googleResults.slice(0, 10));
-                 setLoadingRestaurants(false);
-                 return;
-               }
-             } catch (e) {
-               console.error("Direct Google Places fetch failed:", e);
-             }
-           }
-         }
-      }
+            if (json.restaurants && json.restaurants.length > 0) {
+              setTerritoryRestaurants(json.restaurants.slice(0, 10));
+              setLoadingRestaurants(false);
+              return;
+            }
+            // Server already proxies Google Places; no client CORS fetch needed
+          }
+       }
       
 // Fallback to pincodes via API
       if (territory.pincodes && territory.pincodes.length > 0) {
