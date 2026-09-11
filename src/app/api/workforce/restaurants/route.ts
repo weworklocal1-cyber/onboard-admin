@@ -221,9 +221,9 @@ export async function GET(request: Request) {
     return getDistanceFromLatLonInKm(lat, lng, r.latitude, r.longitude) <= radius;
   });
 
-  // Enforce territory isolation for onboarding_executive on radius search
+  // Enforce territory isolation for onboarding_executive on radius search (strict pincode/territory only - no null leak)
   if (execAllowedPincodes && execTerritoryIds) {
-    const filteredExec = nearbyRestaurants.filter((r: any) => execAllowedPincodes!.has(r.pincode) || execTerritoryIds!.has(r.territory_id) || r.assigned_executive_id === sessionUser.id || !r.pincode);
+    const filteredExec = nearbyRestaurants.filter((r: any) => execAllowedPincodes!.has(r.pincode) || execTerritoryIds!.has(r.territory_id) || r.assigned_executive_id === sessionUser.id);
     // For exec with new territory (medchal 501401 empty), allow Google discovery fallback
     if (filteredExec.length === 0 && googleResults.length > 0) {
       return NextResponse.json({ restaurants: googleResults, source: "google", googleError });
