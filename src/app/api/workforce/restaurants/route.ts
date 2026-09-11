@@ -106,35 +106,71 @@ export async function GET(request: Request) {
     }
   }
 
+  // Territory isolation for onboarding_executive: only his pincodes/territory
+  let execAllowedPincodes: Set<string> | null = null;
+  let execTerritoryIds: Set<string> | null = null;
+  if (sessionUser.role === "onboarding_executive") {
+    const { data: myTerritories } = await supabaseAdmin.from("territories").select("id, pincodes").eq("assigned_executive_id", sessionUser.id);
+    if (!myTerritories || myTerritories.length === 0) {
+      return NextResponse.json({ restaurants: [], message: "No territory assigned to you" });
+    }
+    execTerritoryIds = new Set(myTerritories.map((t: any) => t.id));
+    execAllowedPincodes = new Set(myTerritories.flatMap((t: any) => t.pincodes || []));
+  }
+
   if (!lat || !lng) {
     if (pincodesParam) {
       const pincodes = pincodesParam.split(",").map(p => p.trim()).filter(Boolean);
+      // Enforce territory isolation for exec on pincode query
+      if (execAllowedPincodes) {
+        const disallowed = pincodes.filter(p => !execAllowedPincodes!.has(p));
+        if (disallowed.length > 0) {
+          return NextResponse.json({ error: `Forbidden: pincode(s) ${disallowed.join(",")} not in your assigned territory`, allowed: Array.from(execAllowedPincodes) }, { status: 403 });
+        }
+      }
       const { data: restaurants, error } = await supabaseAdmin
         .from("restaurants")
-        .select("id, name, latitude, longitude, status, avg_rating, locality, pincode, city")
+        .select("id, name, latitude, longitude, status, avg_rating, locality, pincode, city, territory_id, assigned_executive_id")
         .in("pincode", pincodes)
-        .limit(5);
+        .limit(20);
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
-      return NextResponse.json({ restaurants: restaurants || [] });
+      // Extra RLS-like filter for exec
+      let filtered = restaurants || [];
+      if (execAllowedPincodes) {
+        filtered = filtered.filter((r: any) => execAllowedPincodes!.has(r.pincode) || execTerritoryIds!.has(r.territory_id) || r.assigned_executive_id === sessionUser.id);
+      }
+      return NextResponse.json({ restaurants: filtered });
     }
 
     if (cityParam) {
+      // Exec can only query city if they have at least one territory in that city
+      if (execAllowedPincodes) {
+        const { data: myCities } = await supabaseAdmin.from("territories").select("city").eq("assigned_executive_id", sessionUser.id);
+        const allowedCities = new Set((myCities || []).map((c: any) => c.city?.toLowerCase()));
+        if (!allowedCities.has(cityParam.toLowerCase())) {
+          return NextResponse.json({ error: `Forbidden: city ${cityParam} not in your assigned territory`, allowedCities: Array.from(allowedCities) }, { status: 403 });
+        }
+      }
       const { data: restaurants, error } = await supabaseAdmin
         .from("restaurants")
-        .select("id, name, latitude, longitude, status, avg_rating, locality, pincode, city")
+        .select("id, name, latitude, longitude, status, avg_rating, locality, pincode, city, territory_id, assigned_executive_id")
         .eq("city", cityParam)
-        .limit(5);
+        .limit(20);
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
-      return NextResponse.json({ restaurants: restaurants || [] });
+      let filtered = restaurants || [];
+      if (execTerritoryIds) {
+        filtered = filtered.filter((r: any) => execTerritoryIds!.has(r.territory_id) || execAllowedPincodes!.has(r.pincode) || r.assigned_executive_id === sessionUser.id);
+      }
+      return NextResponse.json({ restaurants: filtered });
     }
 
-    // Fallback: if no DB results, use Google results
+    // Fallback: if no DB results, use Google results (only for admins/leads, exec already blocked above if no territory)
     if (googleResults.length > 0) {
       return NextResponse.json({ restaurants: googleResults });
     }
@@ -144,7 +180,7 @@ export async function GET(request: Request) {
 
   const { data: restaurants, error } = await supabaseAdmin
     .from("restaurants")
-    .select("id, name, latitude, longitude, status, avg_rating, locality, pincode, city")
+    .select("id, name, latitude, longitude, status, avg_rating, locality, pincode, city, territory_id, assigned_executive_id")
     .not("latitude", "is", null)
     .not("longitude", "is", null);
 
@@ -153,12 +189,20 @@ export async function GET(request: Request) {
   }
 
   // Filter by radius
-  const nearbyRestaurants = (restaurants || []).filter((r: any) => {
+  let nearbyRestaurants = (restaurants || []).filter((r: any) => {
     if (!r.latitude || !r.longitude) return false;
     return getDistanceFromLatLonInKm(lat, lng, r.latitude, r.longitude) <= radius;
   });
 
-  // If we have Google results but no DB results, return Google results
+  // Enforce territory isolation for onboarding_executive on radius search
+  if (execAllowedPincodes && execTerritoryIds) {
+    nearbyRestaurants = nearbyRestaurants.filter((r: any) => execAllowedPincodes!.has(r.pincode) || execTerritoryIds!.has(r.territory_id) || r.assigned_executive_id === sessionUser.id);
+    // Don't leak Google results outside territory for exec: filter googleResults to within radius AND (if we can geocode, assume territory city match)
+    // For now return only DB filtered results for exec
+    return NextResponse.json({ restaurants: nearbyRestaurants });
+  }
+
+  // If we have Google results but no DB results, return Google results (admin/lead only)
   const allRestaurants = nearbyRestaurants.length > 0 ? nearbyRestaurants : googleResults;
 
   return NextResponse.json({ restaurants: allRestaurants });
@@ -258,16 +302,31 @@ export async function POST(request: Request) {
       insertData.assigned_executive_id = sessionUser.id;
     }
 
-    // Auto-assign territory_id based on pincode so exec sees only assigned territory restaurants
+    // Auto-assign territory_id based on pincode + conflict prevention (PRD 18.2:4)
     if (insertData.pincode) {
-      const { data: matchedTerritory } = await supabaseAdmin.from("territories").select("id, assigned_executive_id").contains("pincodes", [insertData.pincode]).maybeSingle();
+      const { data: matchedTerritory } = await supabaseAdmin.from("territories").select("id, name, city, assigned_executive_id, pincodes").contains("pincodes", [insertData.pincode]).maybeSingle();
       if (matchedTerritory) {
         insertData.territory_id = (matchedTerritory as any).id;
-        // If territory already assigned and no explicit executive, inherit territory's exec
-        if ((matchedTerritory as any).assigned_executive_id && !insertData.assigned_executive_id) {
-          insertData.assigned_executive_id = (matchedTerritory as any).assigned_executive_id;
+        // Conflict prevention: if pincode belongs to territory assigned to another exec
+        const territoryExec = (matchedTerritory as any).assigned_executive_id;
+        if (territoryExec && territoryExec !== sessionUser.id) {
+          const isAdmin = await isAdminRole(sessionUser.role);
+          if (sessionUser.role === "onboarding_executive" && !isAdmin) {
+            // Exec cannot add restaurant in another exec's territory
+            return NextResponse.json({ error: `Territory conflict: pincode ${insertData.pincode} belongs to territory "${(matchedTerritory as any).name}" assigned to another executive.`, territory: matchedTerritory, conflict: true }, { status: 409 });
+          }
+          // Admin adding: auto-inherit but warn in response
+          if (!insertData.assigned_executive_id) {
+            insertData.assigned_executive_id = territoryExec;
+          }
+        } else if (territoryExec && !insertData.assigned_executive_id) {
+          // Same exec or admin: inherit territory's exec if not explicitly set
+          insertData.assigned_executive_id = territoryExec;
         }
       }
+    } else if (latitude && longitude) {
+      // Fallback: try to find territory by city if pincode missing (less precise)
+      // No conflict check without pincode
     }
 
     const { data, error } = await supabaseAdmin

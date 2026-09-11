@@ -47,6 +47,31 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Restaurant ID required" }, { status: 400 });
     }
 
+    // Fetch existing for conflict check
+    const { data: existing } = await supabaseAdmin.from("restaurants").select("pincode, territory_id, assigned_executive_id").eq("id", restaurantId).single();
+    if (!existing) {
+      return NextResponse.json({ error: "Restaurant not found" }, { status: 404 });
+    }
+
+    // Conflict prevention on executive re-assign: ensure restaurant's pincode/territory matches target exec's territory
+    if (assigned_executive_id !== undefined && assigned_executive_id) {
+      // Find target exec's territories
+      const { data: targetTerritories } = await supabaseAdmin.from("territories").select("id, pincodes").eq("assigned_executive_id", assigned_executive_id);
+      const allowedPincodes = new Set((targetTerritories || []).flatMap((t: any) => t.pincodes || []));
+      const allowedTerritoryIds = new Set((targetTerritories || []).map((t: any) => t.id));
+      const restaurantPincode = (existing as any).pincode;
+      const restaurantTerritoryId = (existing as any).territory_id;
+      const isInTerritory = (restaurantPincode && allowedPincodes.has(restaurantPincode)) || (restaurantTerritoryId && allowedTerritoryIds.has(restaurantTerritoryId));
+      // If target exec has at least one territory and restaurant not in it, flag conflict (unless admin override)
+      if (targetTerritories && targetTerritories.length > 0 && !isInTerritory) {
+        // Check if restaurant's pincode belongs to another territory assigned to someone else
+        const { data: conflictingTerritory } = await supabaseAdmin.from("territories").select("id, name, assigned_executive_id").contains("pincodes", [restaurantPincode]).maybeSingle();
+        if (conflictingTerritory && (conflictingTerritory as any).assigned_executive_id && (conflictingTerritory as any).assigned_executive_id !== assigned_executive_id) {
+          return NextResponse.json({ error: `Territory conflict: restaurant pincode ${restaurantPincode} belongs to territory "${(conflictingTerritory as any).name}" assigned to another executive`, conflict: true, territory: conflictingTerritory }, { status: 409 });
+        }
+      }
+    }
+
     const updateData: Record<string, any> = {};
     if (status) updateData.status = status;
     if (assigned_executive_id !== undefined) updateData.assigned_executive_id = assigned_executive_id;
